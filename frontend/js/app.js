@@ -8,7 +8,7 @@
  * explicitly attached to `window` here.
  */
 import { handleAuthSubmit, toggleAuthMode, toggleBarberRegistrationFields, continueAsGuest, handleLogout, restoreSessionOnLoad } from "./ui/auth.js";
-import { navigateTo, openMobileMenu, closeMobileMenu } from "./ui/navigation.js";
+import { navigateTo, openMobileMenu, closeMobileMenu, goHome } from "./ui/navigation.js";
 import {
     handleFileUpload, startCamera, capturePhoto, stopCamera,
     runAI, shareResult, toggleFavorite
@@ -21,12 +21,13 @@ import { selectHairStyle, startHairSession, captureHairPhoto, stopHairSession, s
 import { saveToDB, removeHistoryRow, filterHistory, exportCSV } from "./ui/historyScreen.js";
 import { saveProfile, setAccent } from "./ui/profileScreen.js";
 import { approveBarberApplication, rejectBarberApplication } from "./ui/adminScreen.js";
+import { submitFeedback, updateFeedbackCount, loadAdminFeedback, setFeedbackStatus } from "./ui/feedbackScreen.js";
 import { showBookingTab,useBookingLocation,searchBarberShops,openShopBooking,loadBookingSlots,selectBookingSlot,submitBarberBooking,cancelMyBooking,fillNewShopLocation,submitNewShop,selectManagedShop,addShopBarber,addShopService,saveShopHours,manageBookingAction,openCustomerShopChat,openShopChat,sendShopChat,closeShopChat } from "./ui/bookingScreen.js";
 
 Object.assign(window, {
     // auth / navigation
     handleAuthSubmit, toggleAuthMode, toggleBarberRegistrationFields, continueAsGuest, handleLogout,
-    navigateTo, openMobileMenu, closeMobileMenu,
+    navigateTo, openMobileMenu, closeMobileMenu, goHome,
     // scan & analyze
     handleFileUpload, startCamera, capturePhoto, stopCamera, runAI, shareResult, toggleFavorite,
     // favorites
@@ -43,6 +44,8 @@ Object.assign(window, {
     saveToDB, removeHistoryRow, filterHistory, exportCSV,
     // profile
     saveProfile, setAccent, approveBarberApplication, rejectBarberApplication,
+    // feedback / contact admin
+    submitFeedback, updateFeedbackCount, loadAdminFeedback, setFeedbackStatus,
     // booking
     showBookingTab,useBookingLocation,searchBarberShops,openShopBooking,loadBookingSlots,selectBookingSlot,submitBarberBooking,cancelMyBooking,fillNewShopLocation,submitNewShop,selectManagedShop,addShopBarber,addShopService,saveShopHours,manageBookingAction,openCustomerShopChat,openShopChat,sendShopChat,closeShopChat
 });

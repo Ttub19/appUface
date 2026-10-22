@@ -10,7 +10,8 @@ export function showToast(message, type = "success") {
     const toast = document.createElement("div");
     toast.className = `toast toast-enter toast-${kind}`;
     toast.setAttribute("role", kind === "error" ? "alert" : "status");
-    toast.innerHTML = `<i class="fa-solid ${icons[kind]}"></i><span>${message}</span>`;
+    toast.innerHTML = `<i class="fa-solid ${icons[kind]}"></i><span></span>`;
+    toast.querySelector("span").textContent = message; // server text is shown as text, never as HTML
     container.appendChild(toast);
     setTimeout(() => {
         toast.style.transition = "opacity .3s, transform .3s";

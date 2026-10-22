@@ -8,17 +8,19 @@ import { renderHistoryTable } from "./historyScreen.js";
 import { initCharts } from "./adminScreen.js";
 import { renderProfileScreen } from "./profileScreen.js";
 import { closeShopChat, initBookingScreen } from "./bookingScreen.js";
+import { initFeedbackScreen, loadAdminFeedback, rememberFeedbackOrigin } from "./feedbackScreen.js";
 
 const SCREEN_IDS = [
     "screen-login", "app-content", "screen-main", "screen-result", "screen-golden",
     "screen-guide", "screen-favorites", "screen-history", "screen-admin",
-    "screen-profile", "screen-glasses", "screen-hairstyle", "screen-booking"
+    "screen-profile", "screen-glasses", "screen-hairstyle", "screen-booking", "screen-feedback"
 ];
 
 const NAV_MAP = [
     ["nav-main", "screen-main"], ["nav-golden", "screen-golden"], ["nav-glasses", "screen-glasses"],
     ["nav-hairstyle", "screen-hairstyle"], ["nav-guide", "screen-guide"], ["nav-favorites", "screen-favorites"],
-    ["nav-history", "screen-history"], ["nav-admin", "screen-admin"], ["nav-profile", "screen-profile"], ["nav-booking", "screen-booking"]
+    ["nav-history", "screen-history"], ["nav-admin", "screen-admin"], ["nav-profile", "screen-profile"], ["nav-booking", "screen-booking"],
+    ["nav-feedback", "screen-feedback"]
 ];
 
 export function openMobileMenu() {
@@ -56,6 +58,10 @@ export function stopAllCameras() {
  * @param {string} id - target screen element id, e.g. "screen-main"
  */
 export function navigateTo(id) {
+    if (id === "screen-feedback") {
+        const current = SCREEN_IDS.find((s) => s !== "app-content" && !document.getElementById(s)?.classList.contains("hidden"));
+        rememberFeedbackOrigin(current);
+    }
     SCREEN_IDS.forEach((s) => {
         const el = document.getElementById(s);
         if (el) el.classList.add("hidden");
@@ -83,7 +89,8 @@ export function navigateTo(id) {
 
     stopAllCameras();
     closeShopChat();
-    if (id === "screen-admin") initCharts();
+    if (id === "screen-admin") { initCharts(); loadAdminFeedback("new"); }
+    if (id === "screen-feedback") initFeedbackScreen();
     if (id === "screen-guide") renderGuide();
     if (id === "screen-hairstyle") initHairScreen();
     if (id === "screen-favorites") renderFavorites();
@@ -93,4 +100,9 @@ export function navigateTo(id) {
 
     closeMobileMenu();
     if (id !== "screen-login") window.scrollTo({ top: 0 });
+}
+
+/** Logo in the mobile top bar: back to the home screen from anywhere in the app. */
+export function goHome() {
+    navigateTo("screen-main");
 }

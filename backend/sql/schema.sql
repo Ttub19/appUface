@@ -80,3 +80,22 @@ CREATE TABLE golden_ratio_results (
     created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX ix_golden_ratio_results_user_id ON golden_ratio_results (user_id);
+
+-- Feedback / contact-admin messages (guests allowed: user_id is NULL for them)
+CREATE TABLE IF NOT EXISTS feedback (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         UUID REFERENCES users (id) ON DELETE SET NULL,
+    contact_name    VARCHAR(120) NOT NULL,
+    contact_email   VARCHAR(255) NOT NULL,
+    category        VARCHAR(16)  NOT NULL CHECK (category IN ('suggestion','bug','contact','other')),
+    subject         VARCHAR(160) NOT NULL,
+    message         TEXT         NOT NULL,
+    page            VARCHAR(60),
+    status          VARCHAR(16)  NOT NULL DEFAULT 'new' CHECK (status IN ('new','read','resolved')),
+    admin_note      TEXT,
+    handled_by_id   UUID REFERENCES users (id) ON DELETE SET NULL,
+    handled_at      TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ix_feedback_status ON feedback (status);
+CREATE INDEX IF NOT EXISTS ix_feedback_created_at ON feedback (created_at);

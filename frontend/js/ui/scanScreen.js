@@ -15,20 +15,53 @@ function revealPreviewFrame() {
     if (r.top < 0 || r.bottom > window.innerHeight) frame.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
+// ---------- Image size ----------
+// Phone photos are 3-12 MB. Sending them as-is is slow on mobile data, can time out,
+// and makes the server (512 MB on Render's free plan) run out of memory. The model
+// only looks at a 320 px face crop, so 1280 px on the long side loses nothing.
+const MAX_UPLOAD_SIDE = 1280;
+
+/** Draws an image source onto a canvas no larger than MAX_UPLOAD_SIDE and returns a JPEG data URL. */
+function toUploadDataUrl(source, width, height) {
+    const scale = Math.min(1, MAX_UPLOAD_SIDE / Math.max(width, height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(width * scale));
+    canvas.height = Math.max(1, Math.round(height * scale));
+    canvas.getContext("2d").drawImage(source, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", .9);
+}
+
+/** File -> downscaled JPEG data URL (the browser applies the photo's EXIF rotation when decoding). */
+function fileToUploadDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+            URL.revokeObjectURL(url);
+            try { resolve(toUploadDataUrl(img, img.naturalWidth, img.naturalHeight)); } catch (err) { reject(err); }
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("unreadable image")); };
+        img.src = url;
+    });
+}
+
 // ---------- Upload ----------
-export function handleFileUpload(e) {
-    const file = e.target.files[0];
+export async function handleFileUpload(e) {
+    const input = e.target;
+    const file = input.files[0];
+    input.value = ""; // let the same file be picked again
     if (!file) return;
     stopCamera();
-    const reader = new FileReader();
-    reader.onload = function (ev) {
-        appState.selectedImg = ev.target.result;
-        document.getElementById("preview-placeholder").classList.add("hidden");
-        document.getElementById("preview-container").classList.remove("hidden");
-        document.getElementById("main-preview").src = appState.selectedImg;
-        revealPreviewFrame();
-    };
-    reader.readAsDataURL(file);
+    try {
+        appState.selectedImg = await fileToUploadDataUrl(file);
+    } catch {
+        showToast("เปิดรูปนี้ไม่ได้ กรุณาใช้ไฟล์ JPG หรือ PNG", "error");
+        return;
+    }
+    document.getElementById("preview-placeholder").classList.add("hidden");
+    document.getElementById("preview-container").classList.remove("hidden");
+    document.getElementById("main-preview").src = appState.selectedImg;
+    revealPreviewFrame();
 }
 
 // ---------- Live camera ----------
@@ -53,11 +86,7 @@ export async function startCamera() {
 
 export function capturePhoto() {
     const video = document.getElementById("camera-video");
-    const canvas = document.getElementById("camera-canvas");
-    canvas.width = video.videoWidth || 480;
-    canvas.height = video.videoHeight || 480;
-    canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
-    appState.selectedImg = canvas.toDataURL("image/png");
+    appState.selectedImg = toUploadDataUrl(video, video.videoWidth || 480, video.videoHeight || 480);
 
     stopCamera();
     document.getElementById("preview-container").classList.remove("hidden");

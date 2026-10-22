@@ -127,3 +127,32 @@ class GoldenRatioResult(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped["User"] = relationship(back_populates="golden_ratio_results")
+
+
+class Feedback(Base):
+    """Suggestions, bug reports and "contact admin" messages sent from the app.
+
+    Guests may send one too (user_id is NULL), so the contact name/email are
+    stored on the row itself. The admin works through them with `status` and can
+    leave a reply in `admin_note`, which the sender sees under "ข้อความของฉัน".
+    """
+    __tablename__ = "feedback"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    contact_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    contact_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    category: Mapped[str] = mapped_column(String(16), nullable=False)
+    subject: Mapped[str] = mapped_column(String(160), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    page: Mapped[str | None] = mapped_column(String(60))
+    status: Mapped[str] = mapped_column(String(16), default="new", server_default="new", nullable=False, index=True)
+    admin_note: Mapped[str | None] = mapped_column(Text)
+    handled_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    handled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    __table_args__ = (
+        CheckConstraint("category IN ('suggestion','bug','contact','other')", name="ck_feedback_category"),
+        CheckConstraint("status IN ('new','read','resolved')", name="ck_feedback_status"),
+    )

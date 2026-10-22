@@ -48,7 +48,7 @@ async function request(method, path, { body, auth = true } = {}) {
         });
     } catch (networkErr) {
         console.error("Network error calling", path, networkErr);
-        throw new Error("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาตรวจสอบการเชื่อมต่อเครือข่าย");
+        throw new Error("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ เซิร์ฟเวอร์อาจกำลังเริ่มทำงาน กรุณาลองใหม่อีกครั้งใน 1 นาที");
     }
 
     if (!response.ok) {
@@ -80,6 +80,20 @@ export const apiClient = {
     },
     logout() {
         setToken(null);
+    },
+
+    // ---- Feedback / contact admin ----
+    sendFeedback(payload) {
+        return request("POST", "/feedback", { body: payload });
+    },
+    myFeedback() {
+        return request("GET", "/feedback/mine");
+    },
+    adminFeedback(status = null) {
+        return request("GET", status ? `/admin/feedback?status=${encodeURIComponent(status)}` : "/admin/feedback");
+    },
+    updateFeedback(id, payload) {
+        return request("PATCH", `/admin/feedback/${encodeURIComponent(id)}`, { body: payload });
     },
 
     // ---- Auth ----

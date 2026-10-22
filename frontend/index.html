@@ -148,10 +148,10 @@
 
         <!-- Mobile top bar -->
         <div id="mobile-topbar">
-            <div class="brand">
+            <button type="button" class="brand brand-home" onclick="goHome()" aria-label="กลับหน้าแรก">
                 <span class="brand-mark !w-8 !h-8 !rounded-[10px]"><svg class="!w-5 !h-5"><use href="#logo-mark"/></svg></span>
                 <span class="brand-name !text-lg">uShape</span>
-            </div>
+            </button>
             <button onclick="openMobileMenu()" aria-label="เปิดเมนูและบัญชี" class="user-avatar !w-9 !h-9" data-user-initial>U</button>
         </div>
 
@@ -190,6 +190,10 @@
                     <button onclick="navigateTo('screen-favorites')" id="nav-favorites" class="nav-item"><i class="fa-regular fa-heart"></i>รายการโปรด<span id="fav-badge" class="hidden nav-badge">0</span></button>
                     <button onclick="navigateTo('screen-history')" id="nav-history" class="nav-item"><i class="fa-solid fa-clock-rotate-left"></i>ประวัติการสแกน</button>
                     <button onclick="navigateTo('screen-profile')" id="nav-profile" class="nav-item"><i class="fa-regular fa-user"></i>โปรไฟล์ &amp; ธีมสี</button>
+                </div>
+                <div class="nav-group">
+                    <span class="nav-label">ช่วยเหลือ</span>
+                    <button onclick="navigateTo('screen-feedback')" id="nav-feedback" class="nav-item"><i class="fa-regular fa-comment-dots"></i>ติดต่อแอดมิน &amp; ความคิดเห็น</button>
                 </div>
                 <div class="nav-group">
                     <span class="nav-label">ผู้ดูแลระบบ</span>
@@ -540,6 +544,16 @@
                     <div class="card stat-card"><p><i class="fa-regular fa-image"></i>ภาพที่วิเคราะห์</p><h5 id="admin-stat-scans">–</h5></div>
                     <div class="card stat-card"><p><i class="fa-solid fa-bullseye"></i>ความมั่นใจเฉลี่ย</p><h5 id="admin-stat-confidence">–</h5></div>
                 </div>
+                <section class="admin-verification-panel" aria-labelledby="admin-feedback-title">
+                    <header><div><span>ข้อความจากผู้ใช้</span><h3 id="admin-feedback-title">ความคิดเห็น &amp; ติดต่อแอดมิน</h3></div><strong id="admin-feedback-count" title="ข้อความใหม่">0</strong></header>
+                    <div class="feedback-filters" role="group" aria-label="กรองตามสถานะ">
+                        <button type="button" class="chip-btn is-active" data-feedback-filter="new" aria-pressed="true" onclick="loadAdminFeedback('new')">ใหม่</button>
+                        <button type="button" class="chip-btn" data-feedback-filter="read" aria-pressed="false" onclick="loadAdminFeedback('read')">อ่านแล้ว</button>
+                        <button type="button" class="chip-btn" data-feedback-filter="resolved" aria-pressed="false" onclick="loadAdminFeedback('resolved')">ดำเนินการแล้ว</button>
+                        <button type="button" class="chip-btn" data-feedback-filter="all" aria-pressed="false" onclick="loadAdminFeedback('all')">ทั้งหมด</button>
+                    </div>
+                    <div id="admin-feedback-list" class="feedback-list"><p class="feedback-empty">กำลังโหลด...</p></div>
+                </section>
                 <section class="admin-verification-panel"><header><div><span>การยืนยันตัวตน</span><h3>คำขอสมัครบัญชีช่าง</h3></div><strong id="admin-barber-count">0</strong></header><div id="admin-barber-applications" class="barber-application-list"><div class="barber-application-empty">กำลังโหลดคำขอ...</div></div></section>
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <div class="card card-pad">
@@ -553,6 +567,55 @@
                         <p id="chart-usage-empty" class="hidden empty-state !py-10">ยังไม่มีข้อมูลการสแกน</p>
                     </div>
                 </div>
+            </div>
+
+            <!-- ============ FEEDBACK / CONTACT ADMIN SCREEN ============ -->
+            <div id="screen-feedback" class="hidden page !max-w-[880px]">
+                <header class="page-header">
+                    <div>
+                        <span class="eyebrow">ช่วยเหลือ</span>
+                        <h2 class="page-title">ติดต่อแอดมิน &amp; ส่งความคิดเห็น</h2>
+                        <p class="page-sub">เจอปัญหา อยากได้ฟีเจอร์ใหม่ หรือมีเรื่องอยากสอบถาม ส่งถึงแอดมินได้ที่นี่ แอดมินจะตอบกลับในหน้านี้</p>
+                    </div>
+                </header>
+                <form id="feedback-form" class="card card-pad space-y-4" onsubmit="submitFeedback(event)" novalidate>
+                    <div class="field">
+                        <label for="feedback-category" class="field-label">เรื่อง</label>
+                        <select id="feedback-category" class="select">
+                            <option value="suggestion">ข้อเสนอแนะ</option>
+                            <option value="bug">แจ้งปัญหาการใช้งาน</option>
+                            <option value="contact">ติดต่อแอดมิน</option>
+                            <option value="other">อื่น ๆ</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="feedback-subject" class="field-label">หัวข้อ</label>
+                        <input id="feedback-subject" type="text" class="input" maxlength="160" required placeholder="เช่น กดวิเคราะห์ในมือถือแล้วไม่ขึ้นผล">
+                    </div>
+                    <div class="field">
+                        <label for="feedback-message" class="field-label">รายละเอียด</label>
+                        <textarea id="feedback-message" class="input feedback-textarea" maxlength="2000" required oninput="updateFeedbackCount()" placeholder="เล่าสิ่งที่เกิดขึ้น หรือสิ่งที่อยากให้ปรับปรุง (อย่างน้อย 10 ตัวอักษร)"></textarea>
+                        <div class="flex justify-between gap-3"><span id="feedback-origin" class="field-hint"></span><span id="feedback-count" class="field-hint tabular-nums">0/2000</span></div>
+                    </div>
+                    <div id="feedback-guest-fields" class="hidden grid sm:grid-cols-2 gap-4">
+                        <div class="field">
+                            <label for="feedback-name" class="field-label">ชื่อของคุณ</label>
+                            <input id="feedback-name" type="text" class="input" maxlength="120" autocomplete="name">
+                        </div>
+                        <div class="field">
+                            <label for="feedback-email" class="field-label">อีเมลสำหรับติดต่อกลับ</label>
+                            <input id="feedback-email" type="email" class="input" maxlength="255" autocomplete="email" placeholder="you@example.com">
+                        </div>
+                    </div>
+                    <div class="flex justify-end">
+                        <button id="feedback-submit" type="submit" class="btn btn-primary"><i class="fa-regular fa-paper-plane"></i>ส่งถึงแอดมิน</button>
+                    </div>
+                </form>
+                <section id="feedback-mine-card" class="hidden card card-pad">
+                    <h4 class="card-title">ข้อความของฉัน</h4>
+                    <p class="card-sub">สถานะและคำตอบจากแอดมิน</p>
+                    <div id="feedback-mine" class="feedback-list mt-4"></div>
+                </section>
             </div>
 
             <!-- ============ HISTORY SCREEN ============ -->
@@ -846,7 +909,7 @@
             <button onclick="navigateTo('screen-hairstyle')" class="tab-item" data-tab-for="screen-hairstyle screen-glasses" data-mirror="nav-hairstyle"><i class="fa-solid fa-scissors"></i>ลองลุค</button>
             <button onclick="navigateTo('screen-booking')" class="tab-item" data-tab-for="screen-booking" data-mirror="nav-booking"><i class="fa-regular fa-calendar"></i>จองคิว</button>
             <button onclick="navigateTo('screen-favorites')" class="tab-item" data-tab-for="screen-favorites screen-history" data-mirror="nav-favorites"><i class="fa-regular fa-heart"></i>ที่บันทึก</button>
-            <button onclick="openMobileMenu()" class="tab-item" data-tab-for="screen-guide screen-golden screen-profile screen-admin"><i class="fa-solid fa-bars"></i>เมนู</button>
+            <button onclick="openMobileMenu()" class="tab-item" data-tab-for="screen-guide screen-golden screen-profile screen-admin screen-feedback"><i class="fa-solid fa-bars"></i>เมนู</button>
         </nav>
     </div>
 

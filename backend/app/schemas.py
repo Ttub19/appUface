@@ -220,3 +220,53 @@ class AdminStatsOut(BaseModel):
     average_confidence: float
     shape_distribution: List[ShapeDistributionItem]
     monthly_usage: List[MonthlyUsageItem]
+
+
+# ---------------------------------------------------------------------------
+# Feedback / contact admin
+# ---------------------------------------------------------------------------
+FeedbackCategory = Literal["suggestion", "bug", "contact", "other"]
+FeedbackStatus = Literal["new", "read", "resolved"]
+
+
+class FeedbackCreate(BaseModel):
+    category: FeedbackCategory = "suggestion"
+    subject: str = Field(min_length=3, max_length=160)
+    message: str = Field(min_length=10, max_length=2000)
+    # required only for guests; signed-in users are taken from their account
+    contact_name: Optional[str] = Field(default=None, max_length=120)
+    contact_email: Optional[EmailStr] = None
+    page: Optional[str] = Field(default=None, max_length=60)
+
+    @field_validator("subject", "message")
+    @classmethod
+    def strip_text(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("ห้ามเว้นว่าง")
+        return v
+
+
+class FeedbackOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    category: FeedbackCategory
+    subject: str
+    message: str
+    status: FeedbackStatus
+    admin_note: Optional[str]
+    handled_at: Optional[datetime]
+    created_at: datetime
+
+
+class FeedbackAdminOut(FeedbackOut):
+    user_id: Optional[uuid.UUID]
+    contact_name: str
+    contact_email: str
+    page: Optional[str]
+
+
+class FeedbackUpdate(BaseModel):
+    status: FeedbackStatus
+    admin_note: Optional[str] = Field(default=None, max_length=2000)
