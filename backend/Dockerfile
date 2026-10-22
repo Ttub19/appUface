@@ -2,8 +2,9 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# OpenCV (pulled in by mediapipe) needs these shared libraries on slim images
-RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
+# OpenCV and MediaPipe need these shared libraries on slim images
+# (libegl1 / libgles2 provide libEGL.so.1 / libGLESv2.so.2 that mediapipe loads at import)
+RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 libegl1 libgles2 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
