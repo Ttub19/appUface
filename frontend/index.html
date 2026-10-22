@@ -14,6 +14,10 @@
             window.location.port === "5173") {
             window.__API_BASE_URL__ = "http://localhost:8000";
         }
+        // GitHub Pages: เรียก backend บน Render
+        if (!window.__API_BASE_URL__ && window.location.hostname.endsWith("github.io")) {
+            window.__API_BASE_URL__ = "https://appuface.onrender.com";
+        }
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
