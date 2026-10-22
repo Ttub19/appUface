@@ -77,7 +77,7 @@ function renderGlassesList() {
     root.innerHTML = glassesInCategory(currentCategory).map(({ id, name, desc }) => {
         const active = id === currentGlassesStyle;
         return `<button type="button" class="glass-btn option-card is-vertical${active ? " is-selected" : ""}" data-style="${id}" aria-pressed="${active}">`
-            + `<img src="assets/glasses/${id}.png" alt="" loading="lazy" decoding="async">`
+            + `<img src="assets/glasses/${id}.png?v=3" alt="" loading="lazy" decoding="async">`
             + `<strong>${escapeHtml(name)}</strong><small>${escapeHtml(desc)}</small></button>`;
     }).join("");
 }
@@ -123,7 +123,7 @@ export function selectGlassesStyle(style) {
         btn.setAttribute("aria-pressed", String(active));
     });
     document.getElementById("glasses-shape-inner").innerHTML = GLASSES_SHAPES[currentGlassesStyle] || GLASSES_SHAPES[DEFAULT_GLASSES_STYLE];
-    loadImage(`assets/glasses/${currentGlassesStyle}.png`).catch(() => {}); // warm the cache for capture
+    loadImage(`assets/glasses/${currentGlassesStyle}.png?v=3`).catch(() => {}); // warm the cache for capture
 }
 
 /* ---------- Camera session ---------- */
