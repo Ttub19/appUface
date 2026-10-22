@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 560" width="800" height="1120">
+  <!-- Original vector artwork for Face Shape AI try-on. Template: hairline anchor (200,168), temples x=100..300. -->
+  <defs>
+    <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5c3f2c"/><stop offset=".55" stop-color="#3d2a1e"/><stop offset="1" stop-color="#221710"/>
+    </linearGradient>
+    <radialGradient id="sheen" cx=".42" cy=".22" r=".5">
+      <stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <path id="shape" d="M 84 430 C 70 370, 66 300, 72 240 C 80 150, 130 82, 200 80 C 270 82, 320 150, 328 240 C 334 300, 330 370, 316 430 C 300 436, 284 434, 274 428 C 284 380, 292 320, 292 280 C 292 262, 290 246, 286 236 C 266 244, 252 236, 240 240 C 228 244, 216 236, 204 240 C 192 244, 180 236, 168 240 C 156 244, 140 236, 114 236 C 110 246, 108 262, 108 280 C 108 320, 116 380, 126 428 C 116 434, 100 436, 84 430 Z"/>
+  </defs>
+  <use href="#shape" fill="url(#fill)"/>
+  <use href="#shape" fill="url(#sheen)"/>
+  <path d="M 114 236 C 140 236, 156 244, 168 240 C 180 236, 192 244, 204 240 C 216 236, 228 244, 240 240 C 252 236, 266 244, 286 236" fill="none" stroke="#0b0705" stroke-opacity=".35" stroke-width="4" stroke-linecap="round"/>
+  <g fill="none" stroke-linecap="round">
+    <g stroke="#a07a5c" stroke-opacity=".55" stroke-width="2.2"><path d="M 150 100 C 140 150, 135 200, 140 236"/><path d="M 180 90 C 175 150, 172 200, 174 238"/><path d="M 215 90 C 216 150, 218 200, 220 238"/><path d="M 250 100 C 258 150, 262 200, 258 236"/><path d="M 100 200 C 90 280, 92 360, 104 428"/><path d="M 300 200 C 310 280, 308 360, 296 428"/></g>
+    <g stroke="#0b0705" stroke-opacity=".4" stroke-width="1.6"><path d="M 120 140 C 98 200, 96 300, 112 420"/><path d="M 280 140 C 302 200, 304 300, 288 420"/><path d="M 165 95 C 158 150, 154 200, 156 238"/><path d="M 233 95 C 238 150, 240 200, 238 238"/></g>
+  </g>
+</svg>

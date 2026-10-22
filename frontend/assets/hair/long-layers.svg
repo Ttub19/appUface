@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 560" width="800" height="1120">
+  <!-- Original vector artwork for Face Shape AI try-on. Template: hairline anchor (200,168), temples x=100..300. -->
+  <defs>
+    <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6b4a33"/><stop offset=".55" stop-color="#4a3222"/><stop offset="1" stop-color="#2c1d13"/>
+    </linearGradient>
+    <radialGradient id="sheen" cx=".42" cy=".22" r=".5">
+      <stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <path id="shape" d="M 82 525 C 62 470, 56 400, 62 330 C 66 270, 64 200, 86 145 C 110 90, 155 62, 200 62 C 245 62, 290 90, 314 145 C 336 200, 334 270, 338 330 C 344 400, 338 470, 318 525 C 306 512, 296 520, 286 506 C 280 516, 270 512, 266 500 C 276 450, 290 390, 292 330 C 296 280, 294 240, 278 210 C 256 182, 228 168, 200 168 C 172 168, 144 182, 122 210 C 106 240, 104 280, 108 330 C 110 390, 124 450, 134 500 C 130 512, 120 516, 114 506 C 104 520, 94 512, 82 525 Z"/>
+  </defs>
+  <use href="#shape" fill="url(#fill)"/>
+  <use href="#shape" fill="url(#sheen)"/>
+  <path d="M 108 330 C 104 280, 106 240, 122 210 C 144 182, 172 168, 200 168 C 228 168, 256 182, 278 210 C 294 240, 296 280, 292 330" fill="none" stroke="#0b0705" stroke-opacity=".35" stroke-width="4" stroke-linecap="round"/>
+  <g fill="none" stroke-linecap="round">
+    <g stroke="#b08868" stroke-opacity=".55" stroke-width="2.2"><path d="M 150 80 C 100 140, 80 260, 90 420"/><path d="M 170 75 C 120 150, 100 280, 110 470"/><path d="M 230 75 C 285 150, 300 280, 292 470"/><path d="M 250 80 C 300 140, 320 260, 312 420"/><path d="M 120 220 C 110 300, 112 380, 120 480"/><path d="M 280 220 C 290 300, 290 380, 282 480"/></g>
+    <g stroke="#0b0705" stroke-opacity=".4" stroke-width="1.6"><path d="M 185 64 C 183 90, 180 120, 176 160" stroke-width="2.6"/><path d="M 140 90 C 92 160, 76 280, 76 440"/><path d="M 262 90 C 312 160, 326 280, 326 440"/><path d="M 300 250 C 312 330, 314 400, 300 500"/><path d="M 100 250 C 88 330, 86 400, 100 500"/></g>
+  </g>
+</svg>

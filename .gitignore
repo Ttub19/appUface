@@ -1,0 +1,13 @@
+.env
+backend/.env
+venv/
+.venv/
+node_modules/
+__pycache__/
+*.py[cod]
+.DS_Store
+# face-shape model: the parts + .sha256 are committed; these are built/downloaded at runtime
+backend/models/face_shape_effnetb1.keras
+backend/models/*.tmp
+backend/models/face_landmarker.task
+backend/models/*.part

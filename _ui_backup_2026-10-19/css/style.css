@@ -1,0 +1,104 @@
+:root {
+    --accent: #4274D9;
+    --accent-dark: #293681;
+    --accent-text: #ffffff;
+}
+body { font-family: 'Sarabun', sans-serif; }
+h1, h2, h3, h4, h5, .font-display { font-family: 'Kanit', sans-serif; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: #cbd5f5; border-radius: 10px; }
+@keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.toast-enter { animation: toastIn 0.25s ease-out; }
+.nav-scroll::-webkit-scrollbar { display: none; }
+.nav-scroll { scrollbar-width: none; }
+
+/* Signature element: AI face-scan line, ties the whole product to "scanning" */
+@keyframes scanMove {
+    0% { top: 2%; opacity: 0; }
+    12% { opacity: 1; }
+    88% { opacity: 1; }
+    100% { top: 96%; opacity: 0; }
+}
+.scan-line {
+    position: absolute; left: 4%; right: 4%; height: 3px;
+    background: #4274D9;
+    animation: scanMove 2.4s linear infinite;
+}
+.scan-ring {
+    position: absolute; inset: -6px; border-radius: 9999px;
+    background: conic-gradient(from 0deg, #293681, #4274D9, #95CCDD, #293681);
+    animation: spin 3s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Solid geometric brand shapes -- flat fills, no blur, no opacity wash */
+.deco-shape { position: absolute; pointer-events: none; }
+
+.btn-primary {
+    background-color: var(--accent);
+    color: var(--accent-text);
+    transition: background-color .15s ease, transform .1s ease;
+}
+.btn-primary:hover { background-color: var(--accent-dark); }
+.btn-primary:active { transform: scale(0.97); }
+.btn-primary:disabled { background-color: #94a3b8; opacity: 0.6; }
+
+.accent-swatch.active { outline: 3px solid #0f172a; outline-offset: 2px; }
+
+/* ---- Mobile off-canvas sidebar (hamburger drawer) ---- */
+#sidebar {
+    transition: transform .28s ease;
+}
+@media (max-width: 767px) {
+    #sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 80%;
+        max-width: 300px;
+        z-index: 50;
+        transform: translateX(-100%);
+        box-shadow: 0 0 40px rgba(0,0,0,0.25);
+    }
+    #sidebar.sidebar-open { transform: translateX(0); }
+}
+#sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+    z-index: 40;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s ease;
+}
+#sidebar-overlay.overlay-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+#mobile-topbar { display: none; }
+@media (max-width: 767px) {
+    #mobile-topbar { display: flex; }
+}
+
+/* ---- AR / Face Mesh tracking screens (Golden Ratio, Glasses, Hairstyle) ---- */
+.ar-stage { aspect-ratio: 16 / 9; }
+.ar-stage video, .ar-stage canvas, .ar-stage svg, .ar-stage img {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+}
+.ar-stage video, .ar-stage canvas, .ar-stage img { object-fit: cover; }
+.ar-stage svg { pointer-events: none; }
+.ar-tracked-group { will-change: transform; }
+.mesh-dot { fill: #4274D9; }
+.mesh-key-dot { fill: #95CCDD; stroke: #293681; stroke-width: 1; }
+.mesh-guide-line { stroke: #95CCDD; stroke-width: 1.5; stroke-dasharray: 4 3; }
+
+.ratio-track { height: 10px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
+.ratio-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #4274D9, #95CCDD); transition: width .4s ease; }
+
+/* ---- Barber shop booking ---- */
+.booking-page-header,.booking-section-heading,.booking-manage-header,.booking-card-footer,.booking-location-row,.booking-inline-actions{display:flex;align-items:center;justify-content:space-between;gap:16px}.booking-page-header p,.booking-muted{color:#64748b;font-size:14px;line-height:1.6}.booking-eyebrow{display:block;color:#4274D9;font-size:12px;font-weight:700;text-transform:uppercase;margin-bottom:6px}.booking-trust-note{display:flex;gap:12px;min-width:230px;padding:14px;border:1px solid #cbd5e1;border-radius:12px;background:#fff}.booking-tabs{display:flex;gap:6px;width:fit-content;padding:6px;border:1px solid #e2e8f0;border-radius:14px;background:#fff}.booking-tabs button{min-height:44px;padding:8px 17px;border-radius:9px;color:#64748b;font-weight:700}.booking-tabs .booking-tab-active{background:#293681;color:#fff}.booking-panel{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:24px;box-shadow:0 1px 2px rgba(15,23,42,.04)}.booking-panel h3{color:#0f172a;font-size:20px;font-weight:700}.booking-search-grid{display:grid;grid-template-columns:1.3fr 1fr 110px auto;gap:12px;align-items:end}.booking-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.booking-form-wide{grid-column:1/-1}.booking-search-grid label,.booking-form-grid label{display:flex;flex-direction:column;gap:6px}.booking-search-grid label>span,.booking-form-grid label>span{color:#475569;font-size:12px;font-weight:700}.booking-search-grid input,.booking-search-grid select,.booking-form-grid input,.booking-form-grid select,.booking-form-grid textarea,.booking-manage-header select,.booking-mini-form input,.booking-hours-edit-row input,.booking-chat-compose textarea{width:100%;min-height:44px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;padding:10px 12px}.booking-form-grid textarea{min-height:80px}.booking-button{min-height:44px;display:inline-flex;align-items:center;justify-content:center;padding:10px 16px;border-radius:10px;font-size:14px;font-weight:700}.booking-button-primary{color:#fff;background:#4274D9}.booking-button-secondary{color:#293681;background:#fff;border:1px solid #a9b7d8}.booking-button-chat{color:#21643f;background:#e8f1ec;border:1px solid #b9d8c6;margin-top:12px}.booking-full{width:100%}.booking-location-row{justify-content:flex-start;margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0;color:#64748b;font-size:13px}.booking-card-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px}.booking-empty{grid-column:1/-1;min-height:160px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#64748b;border:1px dashed #cbd5e1;border-radius:14px;padding:24px}.booking-spinner{width:24px;height:24px;border:3px solid #cbd5e1;border-top-color:#4274D9;border-radius:50%;animation:spin .8s linear infinite}.booking-error{color:#b42318}.booking-shop-card{display:grid;grid-template-columns:52px minmax(0,1fr);gap:16px;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:20px}.booking-shop-icon{width:52px;height:52px;display:grid;place-items:center;border-radius:12px;background:#e5f2fc;color:#293681;font-size:22px}.booking-shop-body{min-width:0;display:flex;flex-direction:column;gap:10px}.booking-shop-title{display:flex;justify-content:space-between;gap:10px}.booking-shop-title h3{font-size:18px}.booking-shop-title strong{color:#293681;font-size:12px}.booking-tags{display:flex;flex-wrap:wrap;gap:6px}.booking-tags span,.booking-status{padding:4px 9px;border-radius:999px;font-size:12px;font-weight:700}.booking-tags span{color:#293681;background:#eef4ff;border:1px solid #d7e3fb}.booking-card-footer{margin-top:auto;color:#64748b;font-size:12px}.booking-back{min-height:44px;color:#293681;font-weight:700}.booking-detail-grid{display:grid;grid-template-columns:.9fr 1.1fr;gap:18px}.booking-shop-detail,.booking-form-panel{display:flex;flex-direction:column;gap:16px}.booking-shop-detail h3{font-size:28px}.booking-shop-detail>p{color:#475569;line-height:1.6}.booking-contact-list{display:grid;gap:8px;color:#475569}.booking-hours{padding:12px 0;border-block:1px solid #e2e8f0}.booking-hours>div{display:flex;justify-content:space-between;padding:4px;color:#64748b;font-size:13px}.booking-slots{display:flex;flex-wrap:wrap;gap:8px;min-height:48px;align-items:center}.booking-slot{min-width:76px;min-height:44px;border:1px solid #cbd5e1;border-radius:9px;background:#fff}.booking-slot.selected{background:#293681;color:#fff}.booking-policy{color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px;font-size:12px}.booking-map-panel{display:grid;grid-template-columns:200px 1fr;gap:20px;margin-top:18px}.booking-map-panel iframe{width:100%;height:270px;border:0;border-radius:12px}.booking-appointment-list{display:grid;gap:10px;margin-top:14px}.booking-appointment-card{display:grid;grid-template-columns:210px 1fr auto;gap:16px;align-items:center;padding:16px;border:1px solid #e2e8f0;border-radius:12px}.booking-appointment-time,.booking-appointment-main{display:flex;flex-direction:column;gap:3px}.booking-appointment-time span,.booking-appointment-main p{color:#64748b;font-size:12px}.status-warning{color:#8a4b12;background:#fbebde}.status-success{color:#21643f;background:#e8f1ec}.status-danger{color:#9f2e25;background:#fce9e7}.status-info{color:#1f5c92;background:#e5f2fc}.status-neutral{color:#475569;background:#f0efed}.booking-row-actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px}.booking-row-actions button{min-height:36px;padding:7px 12px;border:1px solid #a9b7d8;border-radius:8px;color:#293681}.booking-row-actions .danger{color:#b42318}.booking-inline-actions{justify-content:flex-end;margin-top:18px}.booking-manage-header{align-items:end}.booking-manage-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}.booking-manage-wide{grid-column:1/-1}.booking-staff-list,.booking-service-list,.booking-conversations{display:grid;gap:8px;margin-top:14px}.booking-staff-list>div,.booking-service-list>div{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #edf2f7}.booking-staff-list p,.booking-service-list p{flex:1;display:flex;flex-direction:column}.booking-staff-list small,.booking-service-list small{color:#64748b;font-size:12px}.booking-avatar{width:36px;height:36px;display:grid;place-items:center;border-radius:50%;background:#e5f2fc}.booking-mini-form{display:grid;grid-template-columns:1.4fr 1fr 75px auto;gap:8px;margin-top:14px}.booking-service-form{grid-template-columns:1.4fr 90px 100px auto}.booking-mini-form button{min-height:44px;padding:0 12px;border-radius:9px;background:#293681;color:#fff}.booking-conversations button{display:grid;gap:3px;padding:12px;border:1px solid #e2e8f0;border-radius:10px;text-align:left}.booking-conversations span{color:#475569;font-size:13px}.booking-hours-editor{display:grid;gap:8px;margin-top:14px}.booking-hours-edit-row{display:grid;grid-template-columns:110px 80px 130px 28px 130px;gap:10px;align-items:center}.booking-hours-edit-row label{font-size:12px}.booking-hours-edit-row label input{width:auto;min-height:auto}.booking-chat-overlay{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:20px;background:rgba(15,23,42,.55)}.booking-chat-overlay.hidden{display:none}.booking-chat-dialog{width:min(560px,100%);height:min(720px,calc(100vh - 40px));display:grid;grid-template-rows:auto 1fr auto;overflow:hidden;border-radius:16px;background:#fff}.booking-chat-dialog>header{display:flex;justify-content:space-between;padding:18px 20px;color:#fff;background:#293681}.booking-chat-messages{overflow:auto;padding:20px;background:#f8fafc}.booking-message{display:flex;margin-bottom:12px}.booking-message.mine{justify-content:flex-end}.booking-message>div{max-width:78%;padding:10px 12px;border:1px solid #dbe3ee;border-radius:12px;background:#fff}.booking-message.mine>div{color:#fff;background:#4274D9}.booking-message strong,.booking-message small{display:block;font-size:11px}.booking-message p{font-size:14px;overflow-wrap:anywhere}.booking-chat-compose{display:grid;grid-template-columns:1fr 58px;gap:10px;padding:14px}.booking-chat-compose button{border-radius:10px;color:#fff;background:#4274D9}
+@media(max-width:1023px){.booking-card-grid,.booking-detail-grid,.booking-map-panel{grid-template-columns:1fr}.booking-search-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:767px){.booking-page-header,.booking-section-heading,.booking-location-row,.booking-card-footer,.booking-manage-header{align-items:stretch;flex-direction:column}.booking-tabs{width:100%;display:grid;grid-template-columns:repeat(3,1fr)}.booking-tabs button{padding:6px;font-size:12px}.booking-panel{padding:18px}.booking-search-grid,.booking-form-grid,.booking-manage-grid{grid-template-columns:1fr}.booking-form-wide,.booking-manage-wide{grid-column:auto}.booking-shop-card{grid-template-columns:44px 1fr;padding:16px}.booking-shop-icon{width:44px;height:44px}.booking-appointment-card{grid-template-columns:1fr auto}.booking-appointment-main{grid-column:1/-1}.booking-mini-form,.booking-service-form{grid-template-columns:1fr}.booking-hours-edit-row{grid-template-columns:72px 60px 1fr 18px 1fr;gap:4px}.booking-chat-overlay{padding:0}.booking-chat-dialog{width:100%;height:100%;border-radius:0}}
+
+.auth-barber-panel{display:grid;gap:9px;padding:14px;border:1px solid #bfdbfe;border-radius:16px;background:#f6f9ff}.auth-barber-panel.hidden{display:none}.auth-barber-panel strong{color:#293681;font-size:13px}.auth-barber-panel p,.auth-barber-panel small{color:#64748b;font-size:11px}.auth-barber-panel input,.auth-barber-panel textarea{width:100%;min-height:42px;border:1px solid #cbd5e1;border-radius:11px;background:#fff;padding:10px 12px;font-size:13px}.auth-barber-panel textarea{min-height:72px}.admin-verification-panel{padding:24px;border:1px solid #dbe3ee;border-radius:20px;background:#fff}.admin-verification-panel>header{display:flex;align-items:center;justify-content:space-between;margin-bottom:15px}.admin-verification-panel>header span{color:#4274D9;font-size:11px;font-weight:700}.admin-verification-panel>header h3{color:#0f172a;font-size:21px;font-weight:700}.admin-verification-panel>header>strong{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;color:#fff;background:#293681}.barber-application-list{display:grid;gap:10px}.barber-application-card{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:13px;padding:15px;border:1px solid #e2e8f0;border-radius:14px;background:#fbfdff}.barber-application-avatar{display:grid;place-items:center;width:44px;height:44px;border-radius:12px;color:#293681;background:#dcecff;font-weight:800}.barber-application-details{display:grid;gap:6px}.barber-application-details h4{color:#0f172a;font-weight:700}.barber-application-details h4 span{margin-left:6px;padding:3px 7px;border-radius:999px;color:#8a4b12;background:#fbebde;font-size:10px}.barber-application-details p,.barber-application-details blockquote{color:#64748b;font-size:12px}.barber-application-details blockquote{padding:8px;border-left:3px solid #95CCDD;background:#f8fafc}.barber-application-actions{display:flex;gap:6px}.barber-application-actions button{height:38px;padding:0 10px;border-radius:8px;font-size:12px;font-weight:700}.barber-application-actions .approve{color:#fff;background:#21643f}.barber-application-actions .reject{color:#9f2e25;border:1px solid #e6b8b4}.barber-application-empty{min-height:90px;display:grid;place-items:center;color:#64748b;border:1px dashed #cbd5e1;border-radius:12px}.booking-tabs button.hidden{display:none}@media(max-width:767px){.barber-application-card{grid-template-columns:40px 1fr}.barber-application-actions{grid-column:1/-1;justify-content:flex-end}}

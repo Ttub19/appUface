@@ -1,0 +1,17 @@
+fastapi>=0.111
+uvicorn[standard]>=0.30
+sqlalchemy>=2.0
+asyncpg>=0.29
+pydantic>=2.7
+pydantic-settings>=2.3
+python-jose[cryptography]>=3.3
+bcrypt>=4.1
+python-multipart>=0.0.9
+email-validator>=2.1
+# ---- face-shape model (app/services/face_shape_predictor.py) ----
+# model saved with Keras 3.13.2; TensorFlow 2.20+ supports Python 3.9-3.13
+tensorflow>=2.20
+keras>=3.13
+mediapipe>=0.10.21
+pillow>=10.0
+numpy>=1.26

@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#F5F7FB">
+    <meta name="description" content="uShape วิเคราะห์รูปหน้าด้วย AI ลองทรงผมและแว่นเสมือนจริง แล้วจองคิวช่างใกล้คุณ">
+    <title>uShape — ค้นหาลุคที่ใช่จากรูปหน้าของคุณ</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='7' fill='%233E5C9A'/%3E%3Cpath d='M7.5 7v4.5a4.5 4.5 0 0 0 9 0V7' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E">
+    <script>
+        // Static-server development has no Nginx /api reverse proxy.
+        if (!window.__API_BASE_URL__ &&
+            ["localhost", "127.0.0.1"].includes(window.location.hostname) &&
+            window.location.port === "5173") {
+            window.__API_BASE_URL__ = "http://localhost:8000";
+        }
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ["IBM Plex Sans Thai", "system-ui", "sans-serif"],
+                        display: ["Noto Serif Thai", "Georgia", "serif"],
+                    },
+                },
+            },
+        };
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Noto+Serif+Thai:wght@500;600;700&display=swap" rel="stylesheet">
+    <!-- MediaPipe Face Mesh: real 468-point facial landmark tracking used by the
+         Golden Ratio, Virtual Glasses and Virtual Hairstyle AR modules -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="min-h-screen">
+
+    <!-- Brand mark: a "U" jawline with a spark — face shape + style -->
+    <svg width="0" height="0" class="absolute" aria-hidden="true">
+        <symbol id="logo-mark" viewBox="0 0 24 24">
+            <path d="M6.5 6v5.5a5.5 5.5 0 0 0 11 0V6" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/>
+            <circle cx="10" cy="10.5" r="1.1" fill="currentColor"/><circle cx="14" cy="10.5" r="1.1" fill="currentColor"/>
+            <path d="M19.6 2.4l.5 1.3 1.3.5-1.3.5-.5 1.3-.5-1.3-1.3-.5 1.3-.5z" fill="currentColor"/>
+        </symbol>
+    </svg>
+
+    <!-- ============ LOGIN SCREEN ============ -->
+    <div id="screen-login" class="auth-shell">
+        <section class="auth-visual" aria-hidden="true">
+            <img src="assets/images/login-portrait.jpg" alt="">
+            <div class="brand absolute top-7 left-8 z-[3]">
+                <span class="brand-mark"><svg><use href="#logo-mark"/></svg></span>
+                <span class="brand-name !text-white">uShape</span>
+            </div>
+            <div class="auth-visual-copy">
+                <h2>ค้นพบลุคที่ใช่<br>จากรูปหน้าของคุณ</h2>
+                <p>วิเคราะห์รูปหน้าด้วย AI ลองทรงผมและแว่นแบบเรียลไทม์ แล้วจองคิวช่างที่ถนัดสไตล์นั้นได้ทันที</p>
+            </div>
+        </section>
+
+        <div class="auth-mobile-photo" aria-hidden="true">
+            <img src="assets/images/login-portrait.jpg" alt="">
+            <div class="brand">
+                <span class="brand-mark"><svg><use href="#logo-mark"/></svg></span>
+                <span class="brand-name">uShape</span>
+            </div>
+        </div>
+
+        <section class="auth-panel">
+            <div class="auth-form-wrap">
+              <div class="auth-form-inner">
+                <div class="brand mb-10 auth-desktop-brand">
+                    <span class="brand-mark"><svg><use href="#logo-mark"/></svg></span>
+                    <span class="brand-name">uShape</span>
+                </div>
+                <h1 class="text-[28px] font-medium tracking-tight leading-tight">ยินดีต้อนรับ</h1>
+                <p id="auth-subtitle" class="text-[15px] text-[color:var(--ink-3)] mt-2 mb-7">สมัครสมาชิกเข้าสู่ระบบเพื่อรับการบริการที่ยอดเยี่ยม</p>
+
+                <div id="auth-error" role="alert" class="hidden notice notice-danger mb-5"></div>
+
+                <form id="auth-form" class="space-y-4" onsubmit="event.preventDefault(); handleAuthSubmit();">
+                    <div id="register-name-field" class="hidden field">
+                        <label for="auth-display-name" class="field-label">ชื่อที่แสดง</label>
+                        <input id="auth-display-name" type="text" autocomplete="name" class="input">
+                    </div>
+                    <div id="register-account-type-field" class="hidden field">
+                        <label for="auth-account-type" class="field-label">ประเภทบัญชี</label>
+                        <select id="auth-account-type" onchange="toggleBarberRegistrationFields()" class="select">
+                            <option value="member">ลูกค้าทั่วไป</option>
+                            <option value="barber">ช่างตัดผม (รอแอดมินอนุมัติ)</option>
+                        </select>
+                    </div>
+                    <div id="register-barber-fields" class="hidden auth-barber-panel">
+                        <strong>ข้อมูลยืนยันบัญชีช่าง</strong>
+                        <p>แอดมินใช้ตรวจสอบเท่านั้น ไม่แสดงต่อลูกค้า</p>
+                        <input id="auth-barber-legal-name" placeholder="ชื่อ–นามสกุลจริง" aria-label="ชื่อ–นามสกุลจริง">
+                        <input id="auth-barber-phone" type="tel" placeholder="เบอร์โทรศัพท์" aria-label="เบอร์โทรศัพท์">
+                        <input id="auth-barber-years" type="number" min="0" max="80" value="0" placeholder="ประสบการณ์ (ปี)" aria-label="ประสบการณ์ (ปี)">
+                        <input id="auth-barber-specialties" placeholder="ความเชี่ยวชาญ เช่น เฟด, ทำสี" aria-label="ความเชี่ยวชาญ">
+                        <textarea id="auth-barber-note" maxlength="2000" placeholder="แนะนำตัวและประสบการณ์ (อย่างน้อย 10 ตัวอักษร)" aria-label="แนะนำตัวและประสบการณ์"></textarea>
+                        <small>สร้างร้านและรับคิวได้หลังแอดมินอนุมัติ</small>
+                    </div>
+                    <div class="field">
+                        <label for="auth-email" class="field-label">อีเมล</label>
+                        <input id="auth-email" type="email" placeholder="you@example.com" autocomplete="email" required class="input">
+                    </div>
+                    <div class="field">
+                        <label for="auth-password" class="field-label">รหัสผ่าน</label>
+                        <input id="auth-password" type="password" autocomplete="current-password" required minlength="8" class="input">
+                        <span class="field-hint">อย่างน้อย 8 ตัวอักษร</span>
+                    </div>
+
+                    <button id="auth-submit-btn" type="submit" class="btn btn-primary btn-lg btn-block !mt-6">เข้าสู่ระบบ</button>
+                </form>
+
+                <p class="text-center text-[15px] mt-5 text-[color:var(--ink-3)]">
+                    <span id="auth-mode-to-register">ยังไม่มีบัญชี? <button type="button" onclick="toggleAuthMode()" class="link">สมัครสมาชิก</button></span>
+                    <span id="auth-mode-to-login" class="hidden">มีบัญชีอยู่แล้ว? <button type="button" onclick="toggleAuthMode()" class="link">เข้าสู่ระบบ</button></span>
+                </p>
+
+                <div class="flex items-center gap-3 my-6">
+                    <div class="flex-1 divider"></div>
+                    <span class="text-sm text-[color:var(--ink-4)]">หรือ</span>
+                    <div class="flex-1 divider"></div>
+                </div>
+
+                <button type="button" onclick="continueAsGuest()" class="btn btn-secondary btn-lg btn-block">
+                    ลองใช้โดยไม่ต้องสมัคร
+                </button>
+                <p class="text-center text-[13px] mt-3 text-[color:var(--ink-4)]">ดูผลวิเคราะห์ได้ แต่ยังบันทึกประวัติไม่ได้</p>
+              </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- ============ APP CONTENT ============ -->
+    <div id="app-content" class="hidden min-h-screen flex flex-col md:flex-row">
+
+        <!-- Mobile top bar -->
+        <div id="mobile-topbar">
+            <div class="brand">
+                <span class="brand-mark !w-8 !h-8 !rounded-[10px]"><svg class="!w-5 !h-5"><use href="#logo-mark"/></svg></span>
+                <span class="brand-name !text-lg">uShape</span>
+            </div>
+            <button onclick="openMobileMenu()" aria-label="เปิดเมนูและบัญชี" class="user-avatar !w-9 !h-9" data-user-initial>U</button>
+        </div>
+
+        <!-- Overlay for mobile drawer -->
+        <div id="sidebar-overlay" onclick="closeMobileMenu()"></div>
+
+        <aside id="sidebar" aria-label="เมนูหลัก">
+            <div class="h-[72px] px-6 flex items-center justify-between">
+                <div class="brand">
+                    <span class="brand-mark"><svg><use href="#logo-mark"/></svg></span>
+                    <span class="brand-name">uShape</span>
+                </div>
+                <button onclick="closeMobileMenu()" aria-label="ปิดเมนู" class="md:hidden icon-btn icon-btn-plain">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <nav class="nav">
+                <div class="nav-group">
+                    <span class="nav-label">สำรวจ</span>
+                    <button onclick="navigateTo('screen-main')" id="nav-main" class="nav-item is-active"><i class="fa-solid fa-house"></i>หน้าแรก</button>
+                    <button onclick="navigateTo('screen-guide')" id="nav-guide" class="nav-item"><i class="fa-regular fa-lightbulb"></i>คู่มือรูปหน้า</button>
+                    <button onclick="navigateTo('screen-golden')" id="nav-golden" class="nav-item"><i class="fa-solid fa-ruler-combined"></i>Golden Ratio</button>
+                </div>
+                <div class="nav-group">
+                    <span class="nav-label">ลองลุคใหม่</span>
+                    <button onclick="navigateTo('screen-hairstyle')" id="nav-hairstyle" class="nav-item"><i class="fa-solid fa-scissors"></i>ลองทรงผม</button>
+                    <button onclick="navigateTo('screen-glasses')" id="nav-glasses" class="nav-item"><i class="fa-solid fa-glasses"></i>ลองแว่นตา</button>
+                </div>
+                <div class="nav-group">
+                    <span class="nav-label">ช่างและร้าน</span>
+                    <button onclick="navigateTo('screen-booking')" id="nav-booking" class="nav-item"><i class="fa-regular fa-calendar"></i>ค้นหาร้าน &amp; จองคิว</button>
+                </div>
+                <div class="nav-group">
+                    <span class="nav-label">ของฉัน</span>
+                    <button onclick="navigateTo('screen-favorites')" id="nav-favorites" class="nav-item"><i class="fa-regular fa-heart"></i>รายการโปรด<span id="fav-badge" class="hidden nav-badge">0</span></button>
+                    <button onclick="navigateTo('screen-history')" id="nav-history" class="nav-item"><i class="fa-solid fa-clock-rotate-left"></i>ประวัติการสแกน</button>
+                    <button onclick="navigateTo('screen-profile')" id="nav-profile" class="nav-item"><i class="fa-regular fa-user"></i>โปรไฟล์ &amp; ธีมสี</button>
+                </div>
+                <div class="nav-group">
+                    <span class="nav-label">ผู้ดูแลระบบ</span>
+                    <button onclick="navigateTo('screen-admin')" id="nav-admin" class="nav-item"><i class="fa-solid fa-chart-simple"></i>Dashboard</button>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-card">
+                    <span class="user-avatar" data-user-initial>U</span>
+                    <div class="user-meta">
+                        <strong id="sidebar-user-name" data-user-name>ผู้ใช้</strong>
+                        <span id="role-badge">สมาชิก</span>
+                    </div>
+                    <button onclick="handleLogout()" class="icon-btn icon-btn-plain" aria-label="ออกจากระบบ" title="ออกจากระบบ"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
+                </div>
+            </div>
+        </aside>
+
+        <main class="app-main">
+
+            <!-- ============ HOME / SCAN SCREEN ============ -->
+            <div id="screen-main" class="page home">
+                <section class="home-intro">
+                    <div>
+                        <p class="home-kicker">สวัสดี <span data-user-name>คุณ</span></p>
+                        <h1 class="home-title">รูปหน้าแบบไหน<br><span>เหมาะกับทรงผมแบบไหน</span></h1>
+                        <p class="home-lede">ถ่ายหรืออัปโหลดรูปหน้าตรงหนึ่งรูป ระบบจะวัดสัดส่วนจาก 468 จุดบนใบหน้า แล้วบอกว่าคุณมีรูปหน้าแบบไหน พร้อมทรงผม แว่น และเครื่องประดับที่เข้ากัน</p>
+
+                        <ol class="home-steps">
+                            <li><b>01</b><div><strong>เลือกรูปหน้าตรง</strong><span>เปิดหน้าผาก ไม่เอียงศีรษะ แสงสม่ำเสมอ</span></div></li>
+                            <li><b>02</b><div><strong>ระบบอ่านโครงหน้า</strong><span>ใช้เวลาไม่ถึงนาที รูปไม่ถูกแชร์ให้ใคร</span></div></li>
+                            <li><b>03</b><div><strong>ลองทรงที่แนะนำ แล้วจองช่าง</strong><span>สวมทรงใหม่ผ่านกล้อง ก่อนตัดจริง</span></div></li>
+                        </ol>
+
+                        <div class="home-actions">
+                            <button type="button" onclick="document.getElementById('file-input').click()" class="btn btn-secondary btn-lg"><i class="fa-regular fa-image"></i>เลือกรูป</button>
+                            <button type="button" onclick="startCamera()" class="btn btn-secondary btn-lg"><i class="fa-solid fa-camera"></i>ถ่ายรูป</button>
+                            <button type="button" onclick="runAI()" class="btn btn-primary btn-lg">วิเคราะห์รูปหน้า</button>
+                            <input type="file" id="file-input" class="hidden" accept="image/*" onchange="handleFileUpload(event)">
+                        </div>
+                        <label class="home-pref" for="gender-pref">
+                            ให้คำแนะนำแบบ
+                            <select id="gender-pref" class="select">
+                                <option value="male">ผู้ชาย</option>
+                                <option value="female">ผู้หญิง</option>
+                            </select>
+                        </label>
+                    </div>
+
+                    <figure class="home-figure">
+                        <div class="home-frame">
+                            <span class="home-figure-tag">ตัวอย่าง</span>
+                            <div id="loading-spinner" class="hidden processing-overlay">
+                                <div class="scan-line"></div>
+                                <div class="spinner"></div>
+                                <span>กำลังอ่านโครงหน้า…</span>
+                            </div>
+
+                            <div id="preview-placeholder" class="absolute inset-0">
+                                <img src="assets/images/scan-portrait.jpg" alt="ตัวอย่างรูปหน้าตรงที่เหมาะสำหรับวิเคราะห์">
+                            </div>
+
+                            <video id="camera-video" class="hidden absolute inset-0 w-full h-full object-cover" autoplay playsinline></video>
+                            <canvas id="camera-canvas" class="hidden"></canvas>
+
+                            <div id="camera-controls" class="hidden stage-toolbar is-floating">
+                                <button onclick="capturePhoto()" class="btn btn-primary"><i class="fa-solid fa-camera"></i>ถ่ายภาพ</button>
+                                <button onclick="stopCamera()" class="btn btn-dark">ยกเลิก</button>
+                            </div>
+
+                            <div id="preview-container" class="hidden absolute inset-0">
+                                <img id="main-preview" class="w-full h-full object-cover" alt="รูปที่คุณเลือกสำหรับวิเคราะห์">
+                            </div>
+                        </div>
+                        <figcaption>
+                            <span>รูปที่คุณเลือกจะแสดงตรงนี้</span>
+                            <span class="home-credit">ภาพ: <a href="https://unsplash.com/photos/D38b7eeNB5U" target="_blank" rel="noopener">Vitaly Gariev</a> / Unsplash</span>
+                        </figcaption>
+                    </figure>
+                </section>
+
+                <section>
+                    <div class="home-section-head">
+                        <h2>5 รูปหน้าที่ระบบแยกได้</h2>
+                        <button type="button" onclick="navigateTo('screen-guide')">อ่านคู่มือ <i class="fa-solid fa-arrow-right text-xs"></i></button>
+                    </div>
+                    <div class="shape-strip">
+                        <button type="button" class="shape-item" onclick="openGuideShape('oval')">
+                            <img class="shape-photo" src="assets/faceshapes/oval.png" alt="ตัวอย่างหน้ารูปไข่" loading="lazy">
+                            <strong>รูปไข่</strong><span>Oval</span>
+                        </button>
+                        <button type="button" class="shape-item" onclick="openGuideShape('round')">
+                            <img class="shape-photo" src="assets/faceshapes/round.png" alt="ตัวอย่างหน้ากลม" loading="lazy">
+                            <strong>กลม</strong><span>Round</span>
+                        </button>
+                        <button type="button" class="shape-item" onclick="openGuideShape('square')">
+                            <img class="shape-photo" src="assets/faceshapes/square.png" alt="ตัวอย่างหน้าเหลี่ยม" loading="lazy">
+                            <strong>เหลี่ยม</strong><span>Square</span>
+                        </button>
+                        <button type="button" class="shape-item" onclick="openGuideShape('heart')">
+                            <img class="shape-photo" src="assets/faceshapes/heart.png" alt="ตัวอย่างหน้าหัวใจ" loading="lazy">
+                            <strong>หัวใจ</strong><span>Heart</span>
+                        </button>
+                        <button type="button" class="shape-item" onclick="openGuideShape('oblong')">
+                            <img class="shape-photo" src="assets/faceshapes/oblong.png" alt="ตัวอย่างหน้ายาว" loading="lazy">
+                            <strong>ยาว</strong><span>Oblong</span>
+                        </button>
+                    </div>
+                </section>
+
+                <section>
+                    <div class="home-section-head mb-6">
+                        <h2>ลองก่อนตัดจริง</h2>
+                    </div>
+                    <div class="home-tools">
+                        <button type="button" onclick="navigateTo('screen-hairstyle')" data-mirror="nav-hairstyle" class="home-feature">
+                            <div class="home-feature-img"><img src="assets/images/tile-hair.jpg" alt="ช่างทำผมกำลังเป่าผมลูกค้า"></div>
+                            <h3>ลองทรงผมผ่านกล้อง</h3>
+                            <p>ระบบกลบผมเดิมของคุณ แล้วสวมทรงใหม่ที่ขยับตามมุมศีรษะ ดูได้ทุกมุมก่อนตัดสินใจ</p>
+                            <span class="more">เปิดห้องลองทรงผม <i class="fa-solid fa-arrow-right text-xs"></i></span>
+                        </button>
+                        <div class="index-list">
+                            <button type="button" onclick="navigateTo('screen-glasses')" data-mirror="nav-glasses" class="index-row">
+                                <i class="fa-solid fa-glasses"></i>
+                                <div><strong>ลองแว่นตา</strong><span>28 ทรง ปรับขนาดพอดีหน้าแบบเรียลไทม์</span></div>
+                                <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                            <button type="button" onclick="navigateTo('screen-golden')" data-mirror="nav-golden" class="index-row">
+                                <i class="fa-solid fa-ruler-combined"></i>
+                                <div><strong>วัด Golden Ratio</strong><span>สัดส่วนสามส่วนของใบหน้าและความสมมาตร</span></div>
+                                <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                            <button type="button" onclick="navigateTo('screen-booking')" data-mirror="nav-booking" class="index-row">
+                                <i class="fa-regular fa-calendar"></i>
+                                <div><strong>จองคิวช่างใกล้คุณ</strong><span>ดูความถนัดของช่าง เลือกเวลา และแชทถามร้าน</span></div>
+                                <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                            <button type="button" onclick="navigateTo('screen-favorites')" data-mirror="nav-favorites" class="index-row">
+                                <i class="fa-regular fa-heart"></i>
+                                <div><strong>รายการโปรด</strong><span>ผลวิเคราะห์ที่คุณเก็บไว้</span></div>
+                                <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- ============ RESULT SCREEN ============ -->
+            <div id="screen-result" class="hidden page">
+                <header class="page-header">
+                    <div class="page-header-main">
+                        <button onclick="navigateTo('screen-main')" aria-label="กลับหน้าแรก" class="icon-btn"><i class="fa-solid fa-arrow-left"></i></button>
+                        <h2 class="page-title self-center">ผลวิเคราะห์ของคุณ</h2>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="shareResult()" class="btn btn-secondary btn-sm"><i class="fa-solid fa-arrow-up-from-bracket"></i>แชร์</button>
+                        <button id="btn-export" onclick="exportCSV()" class="btn btn-secondary btn-sm"><i class="fa-solid fa-file-csv"></i>CSV</button>
+                    </div>
+                </header>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                    <div class="lg:col-span-1 space-y-5">
+                        <div class="card overflow-hidden relative">
+                            <button onclick="toggleFavorite()" id="btn-favorite" aria-label="บันทึกเป็นรายการโปรด" class="icon-btn absolute top-4 right-4 z-10 text-slate-400">
+                                <i class="fa-regular fa-heart"></i>
+                            </button>
+                            <div class="result-hero">
+                                <div class="result-photo"><img id="res-photo" alt="ภาพใบหน้าที่วิเคราะห์"></div>
+                                <p class="text-sm text-[color:var(--ink-3)] mt-4">รูปหน้าของคุณคือ</p>
+                                <h3 id="res-shape" class="text-[28px] font-medium tracking-tight">-</h3>
+                                <span class="chip chip-accent mt-2">ตรงกัน <span id="res-confidence">92%</span></span>
+                            </div>
+                        </div>
+
+                        <div class="card p-2">
+                            <button onclick="navigateTo('screen-hairstyle')" data-mirror="nav-hairstyle" class="action-row">
+                                <span class="tile-icon"><i class="fa-solid fa-scissors"></i></span>
+                                <div><strong>ลองทรงผมที่แนะนำ</strong><span>สวมทรงใหม่ผ่านกล้องได้ทันที</span></div>
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                            <button onclick="navigateTo('screen-glasses')" data-mirror="nav-glasses" class="action-row">
+                                <span class="tile-icon"><i class="fa-solid fa-glasses"></i></span>
+                                <div><strong>ลองแว่นตา</strong><span>แว่นขยับตามดวงตาแบบเรียลไทม์</span></div>
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                            <button onclick="navigateTo('screen-booking')" data-mirror="nav-booking" class="action-row">
+                                <span class="tile-icon"><i class="fa-regular fa-calendar"></i></span>
+                                <div><strong>จองช่างตัดทรงนี้</strong><span>ค้นหาร้านที่ถนัดสไตล์ที่คุณชอบ</span></div>
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="lg:col-span-2 space-y-5">
+                        <section class="card card-pad hair-recs-card" aria-labelledby="hair-recs-title">
+                            <div class="hair-recs-head">
+                                <h4 id="hair-recs-title"><span class="tile-icon"><i class="fa-solid fa-scissors"></i></span>ทรงผมที่แนะนำสำหรับคุณ</h4>
+                                <button type="button" onclick="navigateTo('screen-hairstyle')" data-mirror="nav-hairstyle" class="btn btn-ghost btn-sm">ดูทรงทั้งหมด<i class="fa-solid fa-arrow-right text-xs"></i></button>
+                            </div>
+                            <p id="tip-hair" class="hair-recs-tip">-</p>
+                            <div id="res-hair-recs" class="hair-recs-grid"></div>
+                        </section>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="card tip-card">
+                                <h4><span class="tile-icon"><i class="fa-solid fa-glasses"></i></span>แว่นตาที่เข้ากับคุณ</h4>
+                                <p id="tip-glass">-</p>
+                            </div>
+                            <div class="card tip-card">
+                                <h4><span class="tile-icon"><i class="fa-regular fa-gem"></i></span>เครื่องประดับ</h4>
+                                <p id="tip-jewelry">-</p>
+                            </div>
+                            <div class="card tip-card">
+                                <h4 id="beard-label"><span class="tile-icon"><i class="fa-solid fa-user-check"></i></span>หนวดเครา / การแต่งหน้า</h4>
+                                <p id="tip-beard">-</p>
+                            </div>
+                        </div>
+                        <button id="btn-save" onclick="saveToDB()" class="btn btn-primary btn-lg btn-block"><i class="fa-regular fa-bookmark"></i>บันทึกผลนี้</button>
+                        <p id="guest-notice" class="hidden notice notice-warning">
+                            <i class="fa-solid fa-circle-info mt-1"></i><span>สมัครสมาชิกฟรีเพื่อบันทึกผลวิเคราะห์และกลับมาดูภายหลัง</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- ============ GOLDEN RATIO ANALYSIS SCREEN ============ -->
+            <div id="screen-golden" class="hidden page">
+                <header class="page-header">
+                    <div class="page-header-main">
+                        <button onclick="navigateTo('screen-main')" aria-label="กลับหน้าแรก" class="icon-btn mt-1"><i class="fa-solid fa-arrow-left"></i></button>
+                        <div>
+                            <h2 class="page-title">Golden Ratio</h2>
+                            <p class="page-sub">วัดสัดส่วนใบหน้าแบบสดจาก 468 จุดบนใบหน้า เทียบกับอัตราส่วนทองคำ 1.618</p>
+                        </div>
+                    </div>
+                </header>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+                    <div class="lg:col-span-2 card p-3">
+                        <div class="ar-stage">
+                            <div id="golden-loading" class="hidden processing-overlay is-dark">
+                                <div class="spinner"></div>
+                                <span>กำลังขออนุญาตใช้กล้อง…</span>
+                            </div>
+                            <div id="golden-placeholder" class="stage-placeholder">
+                                <span class="stage-placeholder-icon"><i class="fa-solid fa-ruler-combined"></i></span>
+                                <p>มองตรงเข้ากล้องในที่ที่มีแสงพอ<br>แล้วกด "เริ่มวัดสัดส่วน"</p>
+                            </div>
+                            <video id="golden-video" class="hidden" autoplay playsinline muted></video>
+                            <canvas id="golden-canvas" class="hidden"></canvas>
+                            <div id="golden-face-hint" class="hidden stage-hint">
+                                <span><i class="fa-solid fa-triangle-exclamation"></i>ยังไม่เห็นใบหน้า ลองขยับให้อยู่กลางภาพ</span>
+                            </div>
+                        </div>
+                        <div class="stage-toolbar mb-1">
+                            <button id="golden-open-btn" onclick="startGoldenSession()" class="btn btn-primary"><i class="fa-solid fa-camera"></i>เริ่มวัดสัดส่วน</button>
+                            <button id="golden-save-btn" onclick="saveGoldenRatioResult()" class="hidden btn btn-success"><i class="fa-regular fa-bookmark"></i>บันทึกผล</button>
+                            <button id="golden-stop-btn" onclick="stopGoldenSession()" class="hidden btn btn-secondary">หยุด</button>
+                        </div>
+                    </div>
+
+                    <div class="lg:col-span-1 space-y-4">
+                        <div class="card card-pad text-center">
+                            <p class="text-sm text-[color:var(--ink-3)]">คะแนนรวม</p>
+                            <div id="golden-score-ring" class="score-ring mt-3">
+                                <div>
+                                    <h3 id="golden-overall-score" class="text-[42px] font-medium leading-none tabular-nums">--</h3>
+                                    <span class="text-xs text-[color:var(--ink-4)] mt-1">จาก 100</span>
+                                </div>
+                            </div>
+                            <p id="golden-overall-label" class="text-[15px] text-[color:var(--ink-2)] mt-4">รอข้อมูลจากกล้อง</p>
+                        </div>
+
+                        <div class="card card-pad space-y-4">
+                            <h4 class="card-title">สัดส่วนสามส่วนของใบหน้า</h4>
+                            <div class="metric">
+                                <div class="metric-row"><span>หน้าผาก</span><b id="golden-third-1">--%</b></div>
+                                <div class="ratio-track"><div id="golden-bar-1" class="ratio-fill" style="width:0%"></div></div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-row"><span>คิ้ว–ปลายจมูก</span><b id="golden-third-2">--%</b></div>
+                                <div class="ratio-track"><div id="golden-bar-2" class="ratio-fill" style="width:0%"></div></div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-row"><span>ปลายจมูก–คาง</span><b id="golden-third-3">--%</b></div>
+                                <div class="ratio-track"><div id="golden-bar-3" class="ratio-fill" style="width:0%"></div></div>
+                            </div>
+                        </div>
+
+                        <div class="card card-pad space-y-4">
+                            <h4 class="card-title">อัตราส่วนและความสมมาตร</h4>
+                            <div class="metric">
+                                <div class="metric-row"><span>ยาว : กว้าง</span><b id="golden-ratio-value">-- : 1 <span class="text-slate-400">(1.618)</span></b></div>
+                                <div class="ratio-track"><div id="golden-bar-ratio" class="ratio-fill" style="width:0%"></div></div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-row"><span>สมมาตรซ้าย–ขวา</span><b id="golden-symmetry-value">--%</b></div>
+                                <div class="ratio-track"><div id="golden-bar-symmetry" class="ratio-fill" style="width:0%"></div></div>
+                            </div>
+                            <p class="text-xs leading-relaxed text-[color:var(--ink-4)]">เป็นการวัดเชิงเรขาคณิตเพื่อความสนุก ไม่ใช่คะแนนความงามหรือการวินิจฉัยทางการแพทย์</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ GUIDE SCREEN (index + one page per face shape) ============ -->
+            <div id="screen-guide" class="hidden page">
+                <div id="guide-index" class="space-y-8">
+                    <header class="page-header">
+                        <div>
+                            <h2 class="page-title">คู่มือรูปหน้า</h2>
+                            <p class="page-sub">รูปหน้ามี 5 แบบหลัก แต่ละแบบต่างกันที่ความกว้างของหน้าผาก โหนกแก้ม กราม และความยาวหน้า เลือกแบบที่อยากอ่าน หรือวัดหน้าตัวเองตามภาพแล้วเทียบดู</p>
+                        </div>
+                    </header>
+                    <div id="guide-grid" class="guide-grid"></div>
+                </div>
+                <article id="guide-detail" class="hidden guide-article"></article>
+            </div>
+
+            <!-- ============ FAVORITES SCREEN ============ -->
+            <div id="screen-favorites" class="hidden page">
+                <header class="page-header">
+                    <div>
+                        <h2 class="page-title">รายการโปรด</h2>
+                        <p class="page-sub">ผลวิเคราะห์ที่คุณกดหัวใจเก็บไว้</p>
+                    </div>
+                </header>
+                <div id="favorites-grid" class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4"></div>
+                <div id="favorites-empty" class="card empty-state">
+                    <span class="empty-state-icon"><i class="fa-regular fa-heart"></i></span>
+                    <strong>ยังไม่มีรายการโปรด</strong>
+                    <span>กดหัวใจที่หน้าผลวิเคราะห์ เพื่อเก็บลุคที่ชอบไว้ดูภายหลัง</span>
+                    <button onclick="navigateTo('screen-main')" class="btn btn-soft btn-sm mt-3">เริ่มวิเคราะห์รูปหน้า</button>
+                </div>
+            </div>
+
+            <!-- ============ ADMIN SCREEN ============ -->
+            <div id="screen-admin" class="hidden page">
+                <header class="page-header">
+                    <div>
+                        <span class="eyebrow">ผู้ดูแลระบบ</span>
+                        <h2 class="page-title">ภาพรวมระบบ</h2>
+                    </div>
+                </header>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="card stat-card"><p><i class="fa-solid fa-users"></i>ผู้ใช้ทั้งหมด</p><h5 id="admin-stat-users">–</h5></div>
+                    <div class="card stat-card"><p><i class="fa-regular fa-image"></i>ภาพที่วิเคราะห์</p><h5 id="admin-stat-scans">–</h5></div>
+                    <div class="card stat-card"><p><i class="fa-solid fa-bullseye"></i>ความมั่นใจเฉลี่ย</p><h5 id="admin-stat-confidence">–</h5></div>
+                </div>
+                <section class="admin-verification-panel"><header><div><span>การยืนยันตัวตน</span><h3>คำขอสมัครบัญชีช่าง</h3></div><strong id="admin-barber-count">0</strong></header><div id="admin-barber-applications" class="barber-application-list"><div class="barber-application-empty">กำลังโหลดคำขอ...</div></div></section>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div class="card card-pad">
+                        <h4 class="card-title mb-6">สัดส่วนรูปหน้าในระบบ</h4>
+                        <canvas id="chart-shapes"></canvas>
+                        <p id="chart-shapes-empty" class="hidden empty-state !py-10">ยังไม่มีข้อมูลการสแกน</p>
+                    </div>
+                    <div class="card card-pad">
+                        <h4 class="card-title mb-6">จำนวนการสแกนรายเดือน</h4>
+                        <canvas id="chart-usage"></canvas>
+                        <p id="chart-usage-empty" class="hidden empty-state !py-10">ยังไม่มีข้อมูลการสแกน</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ HISTORY SCREEN ============ -->
+            <div id="screen-history" class="hidden page">
+                <header class="page-header">
+                    <div>
+                        <h2 class="page-title">ประวัติการสแกน</h2>
+                        <p class="page-sub">ผลวิเคราะห์ทั้งหมดที่บันทึกไว้ในบัญชีของคุณ</p>
+                    </div>
+                </header>
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <div class="input-icon flex-1">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input id="history-search" oninput="filterHistory()" type="search" placeholder="ค้นหารูปหน้า" aria-label="ค้นหาประวัติ" class="input !rounded-full">
+                    </div>
+                    <select id="history-filter" onchange="filterHistory()" aria-label="กรองตามรูปหน้า" class="select !rounded-full sm:w-56">
+                        <option value="">ทุกรูปหน้า</option>
+                        <option value="oval">หน้ารูปไข่ (Oval)</option>
+                        <option value="round">หน้ากลม (Round)</option>
+                        <option value="square">หน้าเหลี่ยม (Square)</option>
+                        <option value="heart">หน้ารูปหัวใจ (Heart)</option>
+                        <option value="oblong">หน้ายาว (Oblong)</option>
+                    </select>
+                </div>
+                <div class="card overflow-hidden md:overflow-x-auto">
+                    <table class="table table-cards md:min-w-[560px]">
+                        <thead>
+                            <tr>
+                                <th>ภาพ</th>
+                                <th>รูปหน้า</th>
+                                <th>ความมั่นใจ</th>
+                                <th>วันที่</th>
+                                <th class="w-16"><span class="sr-only">การจัดการ</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-body"></tbody>
+                    </table>
+                    <div id="history-empty" class="empty-state">
+                        <span class="empty-state-icon"><i class="fa-solid fa-clock-rotate-left"></i></span>
+                        <strong>ยังไม่มีประวัติ</strong>
+                        <span>วิเคราะห์รูปหน้าแล้วกด "บันทึกผลนี้" ผลจะมาอยู่ที่นี่</span>
+                        <button onclick="navigateTo('screen-main')" class="btn btn-soft btn-sm mt-3">เริ่มวิเคราะห์รูปหน้า</button>
+                    </div>
+                    <div id="history-no-match" class="hidden empty-state">
+                        <span class="empty-state-icon"><i class="fa-solid fa-magnifying-glass"></i></span>
+                        <strong>ไม่พบผลที่ค้นหา</strong>
+                        <span>ลองเปลี่ยนคำค้นหาหรือตัวกรองรูปหน้า</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ GLASSES TRY-ON SCREEN ============ -->
+            <div id="screen-glasses" class="hidden page tryon-screen">
+                <header class="page-header">
+                    <div class="page-header-main">
+                        <button onclick="navigateTo('screen-main')" aria-label="กลับหน้าแรก" class="icon-btn mt-1"><i class="fa-solid fa-arrow-left"></i></button>
+                        <div>
+                            <h2 class="page-title">ลองแว่นตา</h2>
+                            <p class="page-sub">แว่นจะขยับ หมุน และปรับขนาดให้พอดีกับใบหน้าคุณแบบเรียลไทม์</p>
+                        </div>
+                    </div>
+                </header>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+                    <div class="lg:col-span-2 card p-3 tryon-stage-card">
+                        <div class="ar-stage">
+                            <div id="glasses-loading" class="hidden processing-overlay is-dark">
+                                <div class="spinner"></div>
+                                <span>กำลังขออนุญาตใช้กล้อง…</span>
+                            </div>
+
+                            <div id="glasses-placeholder" class="stage-placeholder">
+                                <span class="stage-placeholder-icon"><i class="fa-solid fa-glasses"></i></span>
+                                <p>เลือกทรงแว่นที่ชอบ<br>แล้วกด "เปิดกล้องลองแว่น"</p>
+                            </div>
+
+                            <video id="glasses-video" class="hidden" autoplay playsinline muted></video>
+                            <svg id="glasses-overlay" class="hidden" viewBox="0 0 1280 720" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+                                <g id="glasses-shape-group" class="ar-tracked-group" style="opacity:0">
+                                    <g id="glasses-shape-inner"></g>
+                                </g>
+                            </svg>
+                            <div id="glasses-face-hint" class="hidden stage-hint">
+                                <span><i class="fa-solid fa-triangle-exclamation"></i>ยังไม่เห็นใบหน้า ลองขยับให้อยู่กลางภาพ</span>
+                            </div>
+
+                            <canvas id="glasses-canvas" class="hidden"></canvas>
+                            <div id="glasses-preview-container" class="hidden absolute inset-0">
+                                <img id="glasses-preview" class="w-full h-full object-cover" alt="ภาพตัวอย่างหลังสวมแว่น">
+                            </div>
+                        </div>
+                        <div id="glasses-controls" class="hidden stage-toolbar mb-1">
+                            <div class="tryon-size-control">
+                                <label for="glasses-size">ขนาดแว่น</label>
+                                <input id="glasses-size" type="range" min="75" max="125" step="1" value="100" oninput="setGlassesSize(this.value)" aria-describedby="glasses-size-value">
+                                <output id="glasses-size-value" for="glasses-size">พอดีหน้า</output>
+                                <button type="button" onclick="setGlassesSize(100)" class="btn btn-ghost btn-sm">รีเซ็ต</button>
+                            </div>
+                            <button onclick="captureGlassesPhoto()" class="btn btn-primary"><i class="fa-solid fa-camera"></i>ถ่ายรูป</button>
+                            <button onclick="stopGlassesSession()" class="btn btn-secondary">ปิดกล้อง</button>
+                        </div>
+                        <button id="glasses-open-btn" onclick="startGlassesSession()" class="btn btn-primary btn-lg btn-block tryon-start-btn">
+                            <i class="fa-solid fa-camera"></i>เปิดกล้องลองแว่น
+                        </button>
+                    </div>
+
+                    <div class="lg:col-span-1 tryon-panel">
+                        <div class="card card-pad space-y-4">
+                            <h4 class="card-title">เลือกทรงแว่น</h4>
+                            <div id="glasses-category-filter" class="tryon-filter" role="toolbar" aria-label="หมวดหมู่แว่น"></div>
+                            <div id="glasses-selector" class="option-list rail-mobile tryon-list" aria-label="รายการแว่น"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ VIRTUAL HAIRSTYLE TRY-ON SCREEN ============ -->
+            <div id="screen-hairstyle" class="hidden page tryon-screen">
+                <header class="page-header">
+                    <div class="page-header-main">
+                        <button onclick="navigateTo('screen-main')" aria-label="กลับหน้าแรก" class="icon-btn mt-1"><i class="fa-solid fa-arrow-left"></i></button>
+                        <div>
+                            <h2 class="page-title">ลองทรงผม</h2>
+                            <p class="page-sub">AI กลบผมเดิมของคุณ แล้วสวมทรงใหม่ที่ขยับตามศีรษะแบบเรียลไทม์</p>
+                        </div>
+                    </div>
+                </header>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+                    <div class="lg:col-span-2 card p-3 tryon-stage-card">
+                        <div class="ar-stage">
+                            <div id="hair-loading" class="hidden processing-overlay is-dark">
+                                <div class="spinner"></div>
+                                <span id="hair-loading-text" class="text-center px-6">กำลังขออนุญาตใช้กล้อง…</span>
+                            </div>
+
+                            <div id="hair-placeholder" class="stage-placeholder">
+                                <span class="stage-placeholder-icon"><i class="fa-solid fa-scissors"></i></span>
+                                <p>เลือกทรงผมที่อยากลอง<br>แล้วกด "เปิดกล้องลองทรงผม"</p>
+                            </div>
+
+                            <video id="hair-video" class="pointer-events-none" style="opacity:0" autoplay playsinline muted></video>
+                            <canvas id="hair-stage" class="hidden"></canvas>
+                            <div id="hair-face-hint" class="hidden stage-hint">
+                                <span><i class="fa-solid fa-triangle-exclamation"></i>ยังไม่เห็นใบหน้า ลองขยับให้อยู่กลางภาพ</span>
+                            </div>
+
+                            <div id="hair-preview-container" class="hidden absolute inset-0">
+                                <img id="hair-preview" class="w-full h-full object-cover" alt="ภาพตัวอย่างทรงผมใหม่">
+                            </div>
+                        </div>
+                        <div id="hair-controls" class="hidden stage-toolbar">
+                            <div class="tryon-size-control">
+                                <label for="hair-size">ขนาดทรงผม</label>
+                                <input id="hair-size" type="range" min="75" max="125" step="1" value="100" oninput="setHairSize(this.value)" aria-describedby="hair-size-value">
+                                <output id="hair-size-value" for="hair-size">พอดีหัว</output>
+                                <button type="button" onclick="setHairSize(100)" class="btn btn-ghost btn-sm">รีเซ็ต</button>
+                            </div>
+                            <button onclick="captureHairPhoto()" class="btn btn-primary"><i class="fa-solid fa-camera"></i>ถ่ายรูป</button>
+                            <button onclick="stopHairSession()" class="btn btn-secondary">ปิดกล้อง</button>
+                        </div>
+                        <button id="hair-open-btn" onclick="startHairSession()" class="btn btn-primary btn-lg btn-block tryon-start-btn">
+                            <i class="fa-solid fa-camera"></i>เปิดกล้องลองทรงผม
+                        </button>
+                        <p class="stage-note"><i class="fa-solid fa-lock mr-1"></i>ประมวลผลบนเครื่องของคุณ ภาพจากกล้องไม่ถูกส่งขึ้นเซิร์ฟเวอร์</p>
+                    </div>
+
+                    <div class="lg:col-span-1 tryon-panel">
+                        <div class="card card-pad space-y-5">
+                            <div id="hair-style-info" class="hair-style-info" aria-live="polite"></div>
+                            <div class="space-y-3">
+                                <h4 class="card-title">รูปหน้าของคุณ</h4>
+                                <div id="hair-shape-filter" class="tryon-filter" role="toolbar" aria-label="กรองตามรูปหน้า"></div>
+                                <p id="hair-recommend-note" class="hidden notice notice-info !text-[13px] hair-recommend-note"></p>
+                            </div>
+                            <div class="space-y-3">
+                                <h4 class="card-title">เลือกทรงผม</h4>
+                                <div id="hair-category-filter" class="tryon-filter" role="toolbar" aria-label="หมวดหมู่ทรงผม"></div>
+                                <div id="hair-selector" class="option-list rail-mobile tryon-list" aria-label="รายการทรงผม"></div>
+                            </div>
+                            <div class="space-y-3">
+                                <h4 class="card-title">สีผม</h4>
+                                <div id="hair-color-filter" class="tryon-filter" role="toolbar" aria-label="สีผม"></div>
+                            </div>
+                            <label class="toggle-row">
+                                <span><strong>กลบผมเดิม</strong><small>ให้ทรงใหม่ดูสมจริงขึ้น</small></span>
+                                <input id="hair-erase-toggle" type="checkbox" checked onchange="setHairErase(this.checked)" class="w-5 h-5 shrink-0" style="accent-color: var(--accent)">
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ BARBER BOOKING SCREEN ============ -->
+            <div id="screen-booking" class="hidden page !max-w-[1200px]">
+                <header class="booking-banner">
+                    <img src="assets/images/booking-banner.jpg" alt="">
+                    <div>
+                        <h2 class="page-title">ค้นหาช่างและจองคิว</h2>
+                        <p>ค้นหาร้านใกล้คุณด้วย GPS ดูความถนัดของช่าง จองเวลา และแชทถามร้านได้ในที่เดียว</p>
+                        <span class="booking-trust"><i class="fa-solid fa-shield-halved"></i>ร้านยืนยันทุกคิว · ยกเลิกได้ล่วงหน้า 6 ชม.</span>
+                    </div>
+                </header>
+                <div class="booking-tabs" role="tablist">
+                    <button data-booking-tab="discover" onclick="showBookingTab('discover')">ค้นหาร้าน</button>
+                    <button data-booking-tab="mine" onclick="showBookingTab('mine')">การจองของฉัน</button>
+                    <button id="booking-manage-tab" class="hidden" data-booking-tab="manage" onclick="showBookingTab('manage')">จัดการร้าน</button>
+                </div>
+                <div id="booking-root" aria-live="polite"></div>
+                <div id="booking-chat-modal" class="hidden booking-chat-overlay" onclick="if(event.target===this)closeShopChat()">
+                    <section class="booking-chat-dialog" role="dialog" aria-modal="true" aria-labelledby="booking-chat-title">
+                        <header>
+                            <div><span id="booking-chat-status">กำลังเชื่อมต่อ...</span><h3 id="booking-chat-title">แชทกับร้าน</h3></div>
+                            <button onclick="closeShopChat()" aria-label="ปิดแชท">×</button>
+                        </header>
+                        <div id="booking-chat-messages" class="booking-chat-messages"></div>
+                        <form class="booking-chat-compose" onsubmit="event.preventDefault();sendShopChat()">
+                            <textarea id="booking-chat-input" maxlength="1000" placeholder="ถามเรื่องบริการ ราคา หรือเวลาว่าง" aria-label="ข้อความ" required></textarea>
+                            <button type="submit">ส่ง</button>
+                        </form>
+                    </section>
+                </div>
+            </div>
+
+            <!-- ============ PROFILE SCREEN ============ -->
+            <div id="screen-profile" class="hidden page !max-w-[880px]">
+                <header class="page-header">
+                    <div>
+                        <h2 class="page-title">โปรไฟล์ &amp; ธีมสี</h2>
+                        <p class="page-sub">จัดการข้อมูลส่วนตัวและเลือกสีที่ชอบ</p>
+                    </div>
+                </header>
+
+                <div class="card overflow-hidden">
+                    <section class="card-pad grid md:grid-cols-3 gap-6 border-b border-[color:var(--border)]">
+                        <div>
+                            <h4 class="card-title">ข้อมูลส่วนตัว</h4>
+                            <p class="card-sub">ชื่อนี้จะแสดงตอนจองคิวกับร้าน</p>
+                        </div>
+                        <div class="md:col-span-2 space-y-4">
+                            <div class="field">
+                                <label for="profile-name" class="field-label">ชื่อที่แสดง</label>
+                                <input id="profile-name" type="text" value="" class="input">
+                            </div>
+                            <div class="field">
+                                <label for="profile-email" class="field-label">อีเมล</label>
+                                <input id="profile-email" type="email" value="" readonly class="input">
+                            </div>
+                            <div class="toggle-row" onclick="document.getElementById('profile-notify-toggle').click()">
+                                <span><strong>แจ้งเตือนเมื่อวิเคราะห์เสร็จ</strong><small>บอกคุณทันทีเมื่อ AI อ่านรูปหน้าเสร็จ</small></span>
+                                <button id="profile-notify-toggle" type="button" role="switch" aria-label="แจ้งเตือนเมื่อวิเคราะห์เสร็จ" onclick="event.stopPropagation(); this.classList.toggle('is-on'); document.getElementById('profile-notify-dot').classList.toggle('translate-x-5')" class="switch is-on">
+                                    <span id="profile-notify-dot" class="translate-x-5"></span>
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="card-pad grid md:grid-cols-3 gap-6">
+                        <div>
+                            <h4 class="card-title">สีหลักของแอป</h4>
+                            <p class="card-sub">ใช้กับปุ่มและไฮไลต์ทั้งหมด</p>
+                        </div>
+                        <div class="md:col-span-2 space-y-3">
+                            <div id="accent-swatch-grid" class="grid grid-cols-3 gap-3">
+                                <button onclick="setAccent('#3E5C9A', this)" class="accent-swatch active bg-[#3E5C9A]" aria-label="น้ำเงิน"></button>
+                                <button onclick="setAccent('#264478', this)" class="accent-swatch bg-[#264478]" aria-label="กรมท่า"></button>
+                                <button onclick="setAccent('#141E3C', this)" class="accent-swatch bg-[#141E3C]" aria-label="น้ำเงินเข้ม"></button>
+                            </div>
+                            <div class="text-xs text-[color:var(--ink-3)] grid grid-cols-3 gap-3 text-center">
+                                <span>น้ำเงิน</span><span>กรมท่า</span><span>น้ำเงินเข้ม</span>
+                            </div>
+                            <div class="flex items-center gap-3 pt-3">
+                                <span class="text-[13px] text-[color:var(--ink-3)]">ตัวอย่าง</span>
+                                <span class="btn btn-primary btn-sm pointer-events-none">ปุ่มหลัก</span>
+                                <span class="chip chip-accent">ป้ายกำกับ</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <div class="px-6 py-4 flex justify-end bg-[color:var(--bg)] border-t border-[color:var(--border)]">
+                        <button onclick="saveProfile()" class="btn btn-primary">บันทึกการตั้งค่า</button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Mobile bottom tab bar (items mirror the sidebar's role-based visibility) -->
+        <nav id="tabbar" aria-label="เมนูลัด">
+            <button onclick="navigateTo('screen-main')" class="tab-item is-active" data-tab-for="screen-main screen-result"><i class="fa-solid fa-house"></i>หน้าแรก</button>
+            <button onclick="navigateTo('screen-hairstyle')" class="tab-item" data-tab-for="screen-hairstyle screen-glasses" data-mirror="nav-hairstyle"><i class="fa-solid fa-scissors"></i>ลองลุค</button>
+            <button onclick="navigateTo('screen-booking')" class="tab-item" data-tab-for="screen-booking" data-mirror="nav-booking"><i class="fa-regular fa-calendar"></i>จองคิว</button>
+            <button onclick="navigateTo('screen-favorites')" class="tab-item" data-tab-for="screen-favorites screen-history" data-mirror="nav-favorites"><i class="fa-regular fa-heart"></i>ที่บันทึก</button>
+            <button onclick="openMobileMenu()" class="tab-item" data-tab-for="screen-guide screen-golden screen-profile screen-admin"><i class="fa-solid fa-bars"></i>เมนู</button>
+        </nav>
+    </div>
+
+    <div id="toast-container" class="fixed bottom-6 right-4 left-4 sm:left-auto sm:right-6 z-[90] flex flex-col gap-3 items-center sm:items-end" aria-live="polite"></div>
+
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>

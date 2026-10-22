@@ -1,0 +1,34 @@
+{
+  "class_names": [
+    "heart",
+    "oblong",
+    "oval",
+    "round",
+    "square"
+  ],
+  "img_size": [
+    240,
+    240
+  ],
+  "resize": "resize_with_pad",
+  "input_range": "0-255 RGB (EfficientNet preprocess_input อยู่นอกโมเดล: identity)",
+  "face_crop": {
+    "module": "face_crop.py",
+    "version": 2,
+    "params": {
+      "out_size": 320,
+      "forehead_lift": 0.2,
+      "margin": 0.08,
+      "align_roll": true,
+      "fill": 128,
+      "detect_max_side": 1280,
+      "min_face_frac": 0.08
+    }
+  },
+  "trained": {
+    "test_accuracy": 0.804,
+    "test_images": 1000,
+    "keras_version": "3.13.2",
+    "saved": "2026-10-21 02:55 (UTC+7)"
+  }
+}

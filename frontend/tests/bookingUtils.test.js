@@ -1,0 +1,2 @@
+import test from"node:test";import assert from"node:assert/strict";import{escapeHtml,mapUrls,parseTags,statusMeta}from"../js/bookingUtils.js";
+test("escape",()=>assert.equal(escapeHtml("<b>'x'</b>"),"&lt;b&gt;&#39;x&#39;&lt;/b&gt;"));test("tags",()=>assert.deepEqual(parseTags("รองทรง, ทำสี,รองทรง"),["รองทรง","ทำสี"]));test("maps",()=>{assert.match(mapUrls(13.75,100.5).embed,/google\.com/);assert.equal(mapUrls(100,1),null)});test("status",()=>assert.equal(statusMeta("pending").label,"รอยืนยัน"));

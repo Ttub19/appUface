@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 560" width="800" height="1120">
+  <!-- Original vector artwork for Face Shape AI try-on. Template: hairline anchor (200,168), temples x=100..300. -->
+  <defs>
+    <linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4a372b"/><stop offset=".55" stop-color="#2b1f18"/><stop offset="1" stop-color="#160f0b"/>
+    </linearGradient>
+    <radialGradient id="sheen" cx=".42" cy=".22" r=".5">
+      <stop offset="0" stop-color="#fff" stop-opacity=".2"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <path id="shape" d="M 102 300 C 92 270, 86 230, 90 190 C 94 140, 118 100, 150 76 C 172 52, 205 34, 245 36 C 285 38, 312 62, 314 98 C 318 130, 312 150, 306 170 C 312 210, 310 260, 298 300 C 300 260, 292 228, 275 208 C 252 182, 228 168, 200 168 C 172 168, 148 182, 125 208 C 108 228, 100 260, 102 300 Z"/>
+  </defs>
+  <use href="#shape" fill="url(#fill)"/>
+  <use href="#shape" fill="url(#sheen)"/>
+  <path d="M 102 300 C 100 260, 108 228, 125 208 C 148 182, 172 168, 200 168 C 228 168, 252 182, 275 208 C 292 228, 300 260, 298 300" fill="none" stroke="#0b0705" stroke-opacity=".35" stroke-width="4" stroke-linecap="round"/>
+  <g fill="none" stroke-linecap="round">
+    <g stroke="#8a6a52" stroke-opacity=".55" stroke-width="2.2"><path d="M 130 200 C 120 150, 150 90, 220 60"/><path d="M 160 180 C 150 130, 180 80, 250 55"/><path d="M 195 170 C 190 120, 220 75, 280 62"/><path d="M 230 175 C 235 130, 260 95, 300 90"/><path d="M 260 192 C 275 160, 290 130, 306 125"/></g>
+    <g stroke="#0b0705" stroke-opacity=".4" stroke-width="1.6"><path d="M 145 190 C 140 140, 165 95, 235 58"/><path d="M 215 170 C 215 125, 245 85, 292 75"/><path d="M 96 215 L 100 285"/><path d="M 304 215 L 300 285"/></g>
+  </g>
+</svg>
