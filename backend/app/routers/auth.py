@@ -2,6 +2,7 @@ from fastapi import APIRouter,Depends,HTTPException,status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.config import get_settings
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import User,UserRole
@@ -18,6 +19,8 @@ async def register(p:UserCreate,db:AsyncSession=Depends(get_db)):
 async def login(form_data:OAuth2PasswordRequestForm=Depends(),db:AsyncSession=Depends(get_db)):
  u=(await db.execute(select(User).where(User.email==form_data.username))).scalar_one_or_none()
  if not u or not verify_password(form_data.password,u.hashed_password):raise HTTPException(401,"อีเมลหรือรหัสผ่านไม่ถูกต้อง",headers={"WWW-Authenticate":"Bearer"})
+ if u.email.lower() in get_settings().admin_email_list and u.role!=UserRole.admin:
+  u.role=UserRole.admin;await db.commit();await db.refresh(u)
  return Token(access_token=create_access_token(str(u.id),{"role":u.role.value}))
 @router.get("/me",response_model=UserOut)
 async def me(current_user:User=Depends(get_current_user)):return current_user

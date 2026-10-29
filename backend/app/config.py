@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     # Comma-separated list of allowed origins, e.g. "http://localhost:5173,http://127.0.0.1:5173"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
+    # ---- Admin ----
+    # Comma-separated emails that become admin (on server start and on login).
+    # Only list emails whose accounts already exist — there is no email verification.
+    admin_emails: str = ""
+
     @field_validator("jwt_secret_key")
     @classmethod
     def _secret_must_not_be_placeholder(cls, v: str) -> str:
@@ -46,6 +51,10 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> List[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def admin_email_list(self) -> List[str]:
+        return [e.strip().lower() for e in self.admin_emails.split(",") if e.strip()]
 
 
 @lru_cache

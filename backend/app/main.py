@@ -1,10 +1,11 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
+from sqlalchemy import func,text,update
 from app import booking_models
 from app.config import get_settings
 from app.database import Base,engine
+from app.models import User,UserRole
 from app.routers import admin,auth,booking,favorites,feedback,golden_ratio,hair_ai,profile,scans
 from app.services.face_shape_predictor import get_predictor
 import logging,threading
@@ -26,6 +27,10 @@ async def lifespan(app):
  async with engine.begin() as c:
   await c.execute(text("UPDATE users u SET role='barber'::user_role,barber_verification_status='approved',barber_legal_name=COALESCE(u.barber_legal_name,u.display_name),barber_review_note=COALESCE(u.barber_review_note,'แปลงสิทธิ์จากเจ้าของร้านเดิมอัตโนมัติ'),barber_reviewed_at=COALESCE(u.barber_reviewed_at,now()) WHERE EXISTS(SELECT 1 FROM barber_shops s WHERE s.owner_user_id=u.id)"))
   await c.execute(text("UPDATE users u SET barber_verification_status='pending',barber_legal_name=COALESCE(u.barber_legal_name,u.display_name),barber_application_note=COALESCE(u.barber_application_note,'บัญชีช่างเดิม กรุณาตรวจสอบก่อนเปิดสิทธิ์') WHERE u.role='member'::user_role AND u.barber_verification_status='none' AND EXISTS(SELECT 1 FROM shop_members sm WHERE sm.user_id=u.id AND sm.role='barber'::shop_member_role)"))
+ if settings.admin_email_list:
+  async with engine.begin() as c:
+   r=await c.execute(update(User).where(func.lower(User.email).in_(settings.admin_email_list)).values(role=UserRole.admin))
+  logging.getLogger(__name__).warning("ADMIN_EMAILS: %d account(s) set to admin",r.rowcount)
  threading.Thread(target=_warm_up_face_model,name="face-model-warmup",daemon=True).start()
  yield
 app=FastAPI(title=settings.app_name,description="Face analysis and verified barber booking API",version="1.2.0",lifespan=lifespan)

@@ -54,6 +54,8 @@ docker compose exec db psql -U faceshape -d faceshape \
   -c "UPDATE users SET role = 'admin' WHERE email = 'your@email.com';"
 ```
 
+หรือบน Render: ใส่ Environment `ADMIN_EMAILS=your@email.com` แล้ว deploy (ไม่ต้องต่อฐานข้อมูลเอง) / หรือรัน `python backend/scripts/set_admin.py` ด้วย External Database URL
+
 จากนั้น logout แล้ว login ใหม่อีกครั้ง จะเห็นเมนู "Dashboard" (Admin Insights)
 
 ## รันแบบไม่ใช้ Docker (แยกรันเอง)
