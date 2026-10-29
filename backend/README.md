@@ -130,3 +130,19 @@ Auth ใช้ `Authorization: Bearer <token>` header หลัง login (มา
 - โหลดโมเดลเบื้องหลังตอนเปิดเซิร์ฟเวอร์ (ใช้เวลาหลายวินาที) — log `Face-shape model ready` = พร้อมใช้
 - ไม่มี TensorFlow ในเครื่อง dev? ตั้ง `FACE_SHAPE_PREDICTOR=mock` เพื่อใช้ผลสุ่มแบบเดิมชั่วคราว
 - เปลี่ยนโมเดลใหม่: วางไฟล์ `.keras` ทับ `face_shape_effnetb1.keras` แล้วลบ `.sha256` (หรือแบ่ง part ใหม่พร้อม checksum) และอัปเดต `class_names.json`
+
+## สร้างภาพทรงผมสมจริงด้วย AI (`/hair/realistic`)
+
+ในหน้าลองทรงผม (ภาพนิ่ง) สมาชิกกด **"สร้างภาพสมจริง"** ได้วันละ `HAIR_AI_DAILY_LIMIT` รูป (ค่าเริ่มต้น 5, นับเฉพาะครั้งที่สำเร็จ, รีเซ็ตเที่ยงคืนเวลาไทย)
+ปุ่มจะซ่อนเองถ้ายังไม่ได้ใส่ key ใด ๆ — รูปจะถูกส่งไปที่บริการภายนอก (หน้าเว็บขอความยินยอมก่อนครั้งแรก) แต่เซิร์ฟเวอร์ไม่เก็บรูป เก็บแค่จำนวนครั้ง (ตาราง `hair_generations`)
+
+| ตัวเลือก | ตั้งค่า (Render → Environment) | วิธีทำงาน |
+|---|---|---|
+| A. Cloudflare Workers AI (ฟรี) | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` | หน้าเว็บส่งภาพลองผมแบบ 2D ครอปรอบศีรษะ 512×512 + mask บริเวณผม → Stable Diffusion 1.5 inpainting วาดเส้นผมใหม่เฉพาะในบริเวณผม แล้วหน้าเว็บนำกลับไปวางบนรูปเต็ม (ใบหน้าเป็นของเดิม 100%) |
+| B. Google Gemini (คุณภาพสูง) | `GEMINI_API_KEY` (+ `HAIR_AI_PROVIDER=gemini` ถ้าใส่ทั้งสองแบบ) | ส่งรูปต้นฉบับ + รูปทรงผมที่เลือกเป็นตัวอย่าง → Gemini แก้เฉพาะผมแล้วส่งรูปทั้งรูปกลับมา |
+
+**สมัคร Cloudflare (ฟรี ไม่ต้องผูกบัตร):** dash.cloudflare.com → สมัคร/เข้าสู่ระบบ → เมนู **AI → Workers AI** → **Use REST API** → กด **Create a Workers AI API Token** แล้วคัดลอก token และ **Account ID** ที่หน้าเดียวกัน
+
+**สมัคร Gemini:** aistudio.google.com → **Get API key** → สร้าง key ในโปรเจกต์ Google Cloud ที่เปิด billing แล้ว (บัญชี Google Cloud ใหม่ได้เครดิตทดลองใช้ $300 / 90 วัน)
+
+สลับผู้ให้บริการได้ทันทีด้วย `HAIR_AI_PROVIDER=cloudflare` หรือ `gemini` แล้ว Deploy ใหม่ — ปิดฟีเจอร์ด้วย `HAIR_AI_PROVIDER=off`

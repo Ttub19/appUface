@@ -156,3 +156,14 @@ class Feedback(Base):
         CheckConstraint("category IN ('suggestion','bug','contact','other')", name="ck_feedback_category"),
         CheckConstraint("status IN ('new','read','resolved')", name="ck_feedback_status"),
     )
+
+
+class HairGeneration(Base):
+    """One successful "สร้างภาพสมจริง" (AI hair) generation — counted for the daily per-member limit."""
+    __tablename__ = "hair_generations"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(16), nullable=False)
+    style_id: Mapped[str] = mapped_column(String(40), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)

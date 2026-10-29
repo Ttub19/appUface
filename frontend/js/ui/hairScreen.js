@@ -1,4 +1,5 @@
 import { showToast } from "./toast.js";
+import { apiClient } from "../apiClient.js";
 import { appState } from "../state.js";
 import { faceData } from "../data.js";
 import { navigateTo } from "./navigation.js";
@@ -62,6 +63,7 @@ export function setHairSize(value) {
     try { localStorage.setItem(SIZE_STORAGE_KEY, String(hairSizePercent)); } catch { /* storage unavailable */ }
     hairSession?.setSizeScale(hairSizePercent / 100);
     syncHairSizeUI();
+    settingsChanged();
 }
 
 /** Manual up/down for the still photo (−15 … +15 % of the face width). */
@@ -73,6 +75,7 @@ export function setHairOffset(value) {
     const output = document.getElementById("hair-offset-value");
     if (input) input.value = String(hairOffsetPercent);
     if (output) output.textContent = hairOffsetPercent === 0 ? "อัตโนมัติ" : `${hairOffsetPercent > 0 ? "ลง" : "ขึ้น"} ${Math.abs(hairOffsetPercent)}%`;
+    settingsChanged();
 }
 
 /** Called by navigation when the screen opens: pre-filter to the user's analysed face shape and gender. */
@@ -88,6 +91,7 @@ export function initHairScreen() {
     syncHairSizeUI();
     setHairOffset(hairOffsetPercent);
     setStageState(hairSession?.hasPhoto ? "photo" : "empty");
+    loadAIConfig();
     renderShapeFilter();
     renderCategoryFilter();
     renderColorFilter();
@@ -221,6 +225,7 @@ export function setHairColor(id) {
     try { localStorage.setItem(COLOR_STORAGE_KEY, hairColorId); } catch { /* storage unavailable */ }
     hairSession?.setHairColor(hairColorId);
     renderColorFilter();
+    settingsChanged();
 }
 
 /** What's selected and whether it suits the analysed face shape. */
@@ -318,7 +323,7 @@ export async function selectHairStyle(id) {
     if (!hairSession) return;
     try {
         const image = await loadHairImage(style);
-        if (hairSession && currentHairStyle === style.id) hairSession.setStyle(style, image);
+        if (hairSession && currentHairStyle === style.id) { hairSession.setStyle(style, image); settingsChanged(); }
     } catch (err) {
         showToast(err.message, "error");
     }
@@ -327,6 +332,7 @@ export async function selectHairStyle(id) {
 export function setHairErase(enabled) {
     eraseEnabled = Boolean(enabled);
     hairSession?.setEraseEnabled(eraseEnabled);
+    settingsChanged();
 }
 
 // ---------------------------------------------------------------------------
@@ -376,6 +382,7 @@ async function usePhoto(source, { mirror = false } = {}) {
         hairSession.setStyle(style, image);
         hairSession.setPhoto(source, { mirror });
         setStageState("photo");
+        settingsChanged();
         syncHairSizeUI();
         setHairOffset(hairOffsetPercent);
         preloadHairImages(filterHairStyles({ shape: shapeFilter, category: categoryFilter }));
@@ -485,7 +492,7 @@ export function captureHairPhoto() {
     }
     const a = document.createElement("a");
     a.href = dataUrl;
-    a.download = `ushape-${currentHairStyle}.jpg`;
+    a.download = `ushape-${currentHairStyle}${aiShowing ? "-ai" : ""}.jpg`;
     document.body.append(a);
     a.click();
     a.remove();
@@ -497,9 +504,124 @@ export function resetHairPhoto() {
     stopHairCamera();
     hairSession?.clear();
     setStageState("empty");
+    settingsChanged();
 }
 
 /** Called when leaving the screen: the camera must not stay on; the photo is kept for coming back. */
 export function stopHairSession() {
     stopHairCamera();
+}
+
+// ---------------------------------------------------------------------------
+// "สร้างภาพสมจริง": a generative model redraws the hair on the photo
+// (server: POST /hair/realistic, members only, a few per day).
+// ---------------------------------------------------------------------------
+const AI_CONSENT_KEY = "hairAiConsent.v1";
+const AI_CACHE_SIZE = 12;
+let aiConfig = null;          // { enabled, provider_label, mode, daily_limit, remaining_today }
+let aiBusy = false;
+let aiShowing = false;        // the realistic image is on screen
+const aiCache = new Map();    // settings -> finished image, so going back to a look costs nothing
+
+const aiKey = () => [hairSession?.photoId, currentHairStyle, hairColorId, hairSizePercent, hairOffsetPercent, eraseEnabled, aiConfig?.provider].join("|");
+
+function hasAiConsent() {
+    try { return localStorage.getItem(AI_CONSENT_KEY) === "1"; } catch { return false; }
+}
+
+async function loadAIConfig() {
+    if (appState.currentRole === "guest") { aiConfig = null; refreshAIPanel(); return; }
+    try { aiConfig = await apiClient.hairRealisticConfig(); }
+    catch { aiConfig = null; }
+    refreshAIPanel();
+}
+
+/** Any change to photo / style / colour / size / position shows the 2D try-on again. */
+function settingsChanged() {
+    aiShowing = false;
+    refreshAIPanel();
+}
+
+function refreshAIPanel() {
+    const panel = document.getElementById("hair-ai-panel");
+    if (!panel) return;
+    const show = Boolean(aiConfig?.enabled && hairSession?.hasPhoto);
+    panel.classList.toggle("hidden", !show);
+    if (!show) return;
+    const cached = aiCache.has(aiKey());
+    const left = Math.max(0, aiConfig.remaining_today ?? 0);
+    const btn = document.getElementById("hair-ai-btn");
+    const label = document.getElementById("hair-ai-btn-label");
+    label.textContent = aiBusy ? "กำลังสร้างภาพ…" : cached ? "ดูภาพสมจริงที่สร้างไว้" : "สร้างภาพสมจริง";
+    btn.disabled = aiBusy || (cached ? aiShowing : left <= 0);
+    const toggle = document.getElementById("hair-ai-toggle");
+    toggle.classList.toggle("hidden", !cached || aiBusy);
+    toggle.textContent = aiShowing ? "ดูแบบเดิม (2D)" : "ดูภาพสมจริง";
+    document.getElementById("hair-ai-quota").textContent = left > 0
+        ? `เหลือวันนี้ ${left}/${aiConfig.daily_limit} รูป`
+        : `วันนี้ใช้ครบ ${aiConfig.daily_limit} รูปแล้ว (รีเซ็ตเที่ยงคืน)`;
+    document.getElementById("hair-ai-provider").textContent = aiConfig.provider_label || "บริการ AI ภายนอก";
+    document.getElementById("hair-ai-consent").classList.toggle("hidden", hasAiConsent());
+}
+
+export async function generateRealisticHair() {
+    if (!hairSession?.hasPhoto || !aiConfig?.enabled || aiBusy) return;
+    const key = aiKey();
+    const cached = aiCache.get(key);
+    if (cached) {                       // already made for exactly these settings: no quota used
+        hairSession.showRealistic(cached);
+        aiShowing = true;
+        refreshAIPanel();
+        return;
+    }
+    if (!hasAiConsent()) {
+        const agree = document.getElementById("hair-ai-agree");
+        if (!agree?.checked) {
+            showToast("กรุณาติ๊กยอมรับการส่งรูปไปประมวลผลก่อน", "info");
+            agree?.focus();
+            return;
+        }
+        try { localStorage.setItem(AI_CONSENT_KEY, "1"); } catch { /* storage unavailable */ }
+    }
+    aiBusy = true;
+    refreshAIPanel();
+    setLoading("AI กำลังวาดเส้นผมให้สมจริง… ประมาณ 5–20 วินาที");
+    try {
+        const style = getHairStyle(currentHairStyle);
+        const color = getHairColor(hairColorId);
+        const inputs = hairSession.realisticInputs(aiConfig.mode);
+        const rgb = hairColorId === "mine" ? hairSession.eraser.colors.hair : (color.rgb || color.swatch || null);
+        const payload = { style_id: style.id, style_name: style.name, color_id: hairColorId, color_rgb: rgb ? rgb.map((v) => Math.round(v)) : null };
+        if (inputs.mode === "patch") Object.assign(payload, { guide_data_url: inputs.guide, mask_data_url: inputs.mask });
+        else Object.assign(payload, { photo_data_url: inputs.photo, reference_data_url: inputs.reference });
+
+        const res = await apiClient.generateRealisticHair(payload);
+        const image = await imageFromSrc(res.image_data_url);
+        const finished = res.mode === "patch" ? hairSession.composePatch(image, inputs) : image;
+        aiCache.set(key, finished);
+        if (aiCache.size > AI_CACHE_SIZE) aiCache.delete(aiCache.keys().next().value);
+        aiConfig.remaining_today = res.remaining_today;
+        if (key === aiKey()) {          // still on the same look -> show it
+            hairSession.showRealistic(finished);
+            aiShowing = true;
+        }
+        showToast("สร้างภาพสมจริงแล้ว กด \"ดูแบบเดิม (2D)\" เพื่อเทียบได้", "success");
+    } catch (err) {
+        console.error("realistic hair failed:", err);
+        showToast(err.message || "สร้างภาพไม่สำเร็จ กรุณาลองใหม่", "error");
+        loadAIConfig();                 // resync the remaining count (e.g. limit reached)
+    } finally {
+        aiBusy = false;
+        setLoading(null);
+        refreshAIPanel();
+    }
+}
+
+/** Before / after: switch between the generated image and the 2D try-on. */
+export function toggleRealisticView() {
+    const cached = aiCache.get(aiKey());
+    if (!cached || !hairSession) return;
+    aiShowing = !aiShowing;
+    hairSession.showRealistic(aiShowing ? cached : null);
+    refreshAIPanel();
 }

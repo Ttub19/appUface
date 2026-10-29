@@ -417,6 +417,8 @@ export class HairPhotoSession {
         this.eraseEnabled = true;
         this.sizeScale = 1;
         this.offsetY = 0;          // manual up/down, in face widths (+ = lower)
+        this.realistic = null;     // AI-generated image shown instead of the 2D try-on
+        this.photoId = 0;
     }
 
     async load() {
@@ -462,6 +464,8 @@ export class HairPhotoSession {
         });
 
         this.base = base;
+        this.realistic = null;
+        this.photoId = (this.photoId || 0) + 1;     // cache key for generated images
         this.eraser.reset();
         this.hairlineLift = LANDMARK10_BELOW_HAIRLINE;
         if (conf) {
@@ -482,6 +486,7 @@ export class HairPhotoSession {
     }
 
     setStyle(style, image) {
+        this.realistic = null;
         this.style = style;
         this.rawImage = image;
         this.styleImage = this._preparedFor(style, image);
@@ -489,14 +494,15 @@ export class HairPhotoSession {
     }
 
     setHairColor(colorId) {
+        this.realistic = null;
         this.colorId = colorId || DEFAULT_HAIR_COLOR;
         if (this.style && this.rawImage) this.styleImage = this._preparedFor(this.style, this.rawImage);
         this.render();
     }
 
-    setSizeScale(scale) { this.sizeScale = Number.isFinite(scale) && scale > 0 ? scale : 1; this.render(); }
-    setOffsetY(faceWidths) { this.offsetY = Number.isFinite(faceWidths) ? faceWidths : 0; this.render(); }
-    setEraseEnabled(enabled) { this.eraseEnabled = Boolean(enabled); this.render(); }
+    setSizeScale(scale) { this.realistic = null; this.sizeScale = Number.isFinite(scale) && scale > 0 ? scale : 1; this.render(); }
+    setOffsetY(faceWidths) { this.realistic = null; this.offsetY = Number.isFinite(faceWidths) ? faceWidths : 0; this.render(); }
+    setEraseEnabled(enabled) { this.realistic = null; this.eraseEnabled = Boolean(enabled); this.render(); }
 
     _preparedFor(style, image) {
         const rgb = resolveHairRgb(this.colorId, this.eraser.colors.hair);
@@ -515,32 +521,179 @@ export class HairPhotoSession {
         return canvas;
     }
 
-    render() {
-        if (!this.face) return;
+    /** The 2D try-on: photo -> erase layer -> hairstyle. */
+    _render2D(ctx) {
         const { width: w, height: h } = this.base;
-        if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
-        const ctx = this.ctx;
         ctx.save();
         ctx.clearRect(0, 0, w, h);
         ctx.drawImage(this.base, 0, 0);
         if (this.eraseEnabled) this.eraser.draw(ctx, w, h);
-        if (this.style && this.styleImage) {
-            const { landmarks, pose, headWidthPx } = this.face;
-            const p = computeHairPlacement(landmarks, w, h, pose, this.style, headWidthPx);
-            const style = this.style, image = this.styleImage;
-            const vb = style.viewBox || HAIR_ASSET_VIEWBOX;
-            const [dw, dh] = image instanceof HTMLCanvasElement ? [image.width, image.height] : [vb.width, vb.height];
-            const fw = style.faceWidthPx || 300;
-            const anchorY = (Number.isFinite(style.hairlineY) ? style.hairlineY + this.hairlineLift * fw : style.anchor.y) - this.offsetY * fw;
-            if (this.colorId !== "mine" && canvasFilterSupported()) {
-                ctx.filter = `brightness(${lightingFactor(this.eraser.colors.skin).toFixed(3)})`;
-            }
-            ctx.translate(p.x, p.y);
-            ctx.rotate(p.rotation);
-            ctx.scale(p.scaleX * this.sizeScale, p.scaleY * this.sizeScale);
-            ctx.drawImage(image, -style.anchor.x, -anchorY, dw, dh);
-        }
+        this._drawHair(ctx, true);
         ctx.restore();
+    }
+
+    /** Draws the chosen hairstyle in photo space (lighting = match the room, off for masks). */
+    _drawHair(ctx, lighting) {
+        if (!this.style || !this.styleImage) return;
+        const { width: w, height: h } = this.base;
+        const { landmarks, pose, headWidthPx } = this.face;
+        const p = computeHairPlacement(landmarks, w, h, pose, this.style, headWidthPx);
+        const style = this.style, image = this.styleImage;
+        const vb = style.viewBox || HAIR_ASSET_VIEWBOX;
+        const [dw, dh] = image instanceof HTMLCanvasElement ? [image.width, image.height] : [vb.width, vb.height];
+        const fw = style.faceWidthPx || 300;
+        const anchorY = (Number.isFinite(style.hairlineY) ? style.hairlineY + this.hairlineLift * fw : style.anchor.y) - this.offsetY * fw;
+        ctx.save();
+        if (lighting && this.colorId !== "mine" && canvasFilterSupported()) {
+            ctx.filter = `brightness(${lightingFactor(this.eraser.colors.skin).toFixed(3)})`;
+        }
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rotation);
+        ctx.scale(p.scaleX * this.sizeScale, p.scaleY * this.sizeScale);
+        ctx.drawImage(image, -style.anchor.x, -anchorY, dw, dh);
+        ctx.restore();
+    }
+
+    render() {
+        if (!this.face) return;
+        const src = this.realistic;
+        const [w, h] = src ? [src.width, src.height] : [this.base.width, this.base.height];
+        if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
+        if (src) {
+            this.ctx.clearRect(0, 0, w, h);
+            this.ctx.drawImage(src, 0, 0);
+        } else {
+            this._render2D(this.ctx);
+        }
+    }
+
+    // ---- "สร้างภาพสมจริง": inputs for the generative model and putting its answer back ----
+
+    /**
+     * Square (photo px) around the face and the whole hairstyle (long hair included),
+     * kept inside the photo where possible so the model sees real pixels, not padding.
+     */
+    headCrop(mask = this.hairMask()) {
+        const { width: w, height: h } = this.base;
+        const lm = this.face.landmarks;
+        const xs = [LM.FOREHEAD, LM.CHIN, LM.TEMPLE_L, LM.TEMPLE_R].map((i) => lm[i].x * w);
+        const ys = [LM.FOREHEAD, LM.CHIN, LM.TEMPLE_L, LM.TEMPLE_R].map((i) => lm[i].y * h);
+        let [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+        // hair bounding box from a small copy of the mask
+        const k = Math.min(1, 256 / Math.max(w, h));
+        const sw = Math.max(1, Math.round(w * k)), sh = Math.max(1, Math.round(h * k));
+        const small = document.createElement("canvas");
+        small.width = sw; small.height = sh;
+        const sctx = small.getContext("2d", { willReadFrequently: true });
+        sctx.drawImage(mask, 0, 0, sw, sh);
+        const a = sctx.getImageData(0, 0, sw, sh).data;
+        for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) {
+            if (a[(y * sw + x) * 4 + 3] > 40) {
+                x0 = Math.min(x0, x / k); x1 = Math.max(x1, (x + 1) / k);
+                y0 = Math.min(y0, y / k); y1 = Math.max(y1, (y + 1) / k);
+            }
+        }
+        let size = Math.round(Math.max(x1 - x0, y1 - y0) * 1.12);
+        size = Math.min(size, Math.max(w, h));
+        const place = (lo, hi, limit) => {
+            let start = (lo + hi) / 2 - size / 2;
+            if (size <= limit) start = Math.min(Math.max(start, 0), limit - size);
+            return Math.round(start);
+        };
+        return { x: place(x0, x1, w), y: place(y0, y1, h), size };
+    }
+
+    /**
+     * Where the model may repaint: the new hairstyle plus the old hair that was
+     * covered up, grown a little so the new hair blends into the photo.
+     * Returns an alpha canvas (white, alpha = repaint) in photo space.
+     */
+    hairMask() {
+        const { width: w, height: h } = this.base;
+        const m = document.createElement("canvas");
+        m.width = w; m.height = h;
+        const ctx = m.getContext("2d");
+        if (this.eraseEnabled && this.eraser.ready) ctx.drawImage(this.eraser.canvas, 0, 0, w, h);
+        this._drawHair(ctx, false);
+        ctx.globalCompositeOperation = "source-in";
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, w, h);
+        return m;
+    }
+
+    /**
+     * patch mode (inpainting): 512x512 head crop of the 2D try-on + its mask.
+     * full mode: the untouched photo + the chosen hairstyle on white as a reference.
+     */
+    realisticInputs(mode, size = 512) {
+        if (!this.face) throw new Error("ยังไม่มีรูป");
+        if (mode === "full") {
+            const k = Math.min(1, 1024 / Math.max(this.base.width, this.base.height));
+            const photo = document.createElement("canvas");
+            photo.width = Math.round(this.base.width * k); photo.height = Math.round(this.base.height * k);
+            photo.getContext("2d").drawImage(this.base, 0, 0, photo.width, photo.height);
+            const img = this.styleImage;
+            const ref = document.createElement("canvas");
+            const rk = Math.min(1, 768 / Math.max(img.width, img.height));
+            ref.width = Math.round(img.width * rk); ref.height = Math.round(img.height * rk);
+            const rctx = ref.getContext("2d");
+            rctx.fillStyle = "#fff"; rctx.fillRect(0, 0, ref.width, ref.height);
+            rctx.drawImage(img, 0, 0, ref.width, ref.height);
+            return { mode, photo: photo.toDataURL("image/jpeg", .92), reference: ref.toDataURL("image/png") };
+        }
+        const hairMask = this.hairMask();
+        const crop = this.headCrop(hairMask);
+        const full = document.createElement("canvas");
+        full.width = this.base.width; full.height = this.base.height;
+        this._render2D(full.getContext("2d"));
+        const guide = document.createElement("canvas");
+        guide.width = guide.height = size;
+        const gctx = guide.getContext("2d");
+        gctx.fillStyle = "#808080"; gctx.fillRect(0, 0, size, size);
+        gctx.drawImage(full, crop.x, crop.y, crop.size, crop.size, 0, 0, size, size);
+
+        // mask: crop -> 512, soften + grow a little, then white-on-black for the model
+        const alpha = document.createElement("canvas");
+        alpha.width = alpha.height = size;
+        const actx = alpha.getContext("2d");
+        actx.filter = `blur(${Math.round(size / 90)}px)`;
+        actx.drawImage(hairMask, crop.x, crop.y, crop.size, crop.size, 0, 0, size, size);
+        actx.filter = "none";
+        const px = actx.getImageData(0, 0, size, size);
+        for (let i = 3; i < px.data.length; i += 4) px.data[i] = Math.min(255, px.data[i] * 2.2);   // grow
+        actx.putImageData(px, 0, 0);
+        const mask = document.createElement("canvas");
+        mask.width = mask.height = size;
+        const mctx = mask.getContext("2d");
+        mctx.fillStyle = "#000"; mctx.fillRect(0, 0, size, size);
+        mctx.drawImage(alpha, 0, 0);
+        return { mode, crop, alpha, full, guide: guide.toDataURL("image/jpeg", .93), mask: mask.toDataURL("image/png") };
+    }
+
+    /** patch mode: the model's 512 crop goes back into the full-resolution photo only where the mask allows. */
+    composePatch(resultImage, inputs) {
+        const { width: w, height: h } = this.base;
+        const out = document.createElement("canvas");
+        out.width = w; out.height = h;
+        const octx = out.getContext("2d");
+        // the 2D try-on as it was when the request was sent (settings may have changed since)
+        if (inputs.full) octx.drawImage(inputs.full, 0, 0); else this._render2D(octx);
+        const { crop, alpha } = inputs;
+        const patch = document.createElement("canvas");
+        patch.width = patch.height = crop.size;
+        const pctx = patch.getContext("2d");
+        pctx.drawImage(resultImage, 0, 0, crop.size, crop.size);
+        pctx.globalCompositeOperation = "destination-in";
+        pctx.filter = `blur(${Math.max(1, Math.round(crop.size / 200))}px)`;   // feathered seam
+        pctx.drawImage(alpha, 0, 0, crop.size, crop.size);
+        octx.drawImage(patch, crop.x, crop.y);
+        return out;
+    }
+
+    /** Show a finished realistic image instead of the 2D try-on (null = back to 2D). */
+    showRealistic(image) {
+        this.realistic = image || null;
+        this.render();
     }
 
     capture(type = "image/jpeg", quality = .92) {
@@ -549,6 +702,7 @@ export class HairPhotoSession {
 
     clear() {
         this.face = null;
+        this.realistic = null;
         this.eraser.reset();
         this.prepared.clear();
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);

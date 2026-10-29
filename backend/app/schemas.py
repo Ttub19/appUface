@@ -273,3 +273,36 @@ class FeedbackAdminOut(FeedbackOut):
 class FeedbackUpdate(BaseModel):
     status: FeedbackStatus
     admin_note: Optional[str] = Field(default=None, max_length=2000)
+
+
+# ---------------------------------------------------------------------------
+# Realistic hair (AI image generation)
+# ---------------------------------------------------------------------------
+class HairAIConfigOut(BaseModel):
+    enabled: bool
+    provider: Optional[str] = None
+    provider_label: Optional[str] = None
+    mode: Optional[Literal["patch", "full"]] = None   # patch: send head crop + mask, full: send photo + reference
+    daily_limit: int
+    used_today: int = 0
+    remaining_today: int = 0
+
+
+class HairAIRequest(BaseModel):
+    style_id: str = Field(min_length=1, max_length=40)
+    style_name: str = Field(min_length=1, max_length=60)
+    color_id: Optional[str] = Field(default=None, max_length=20)
+    color_rgb: Optional[List[int]] = Field(default=None, min_length=3, max_length=3)
+    # patch mode (Cloudflare): 512x512 head crop of the 2D try-on + hair mask (white = repaint)
+    guide_data_url: Optional[str] = None
+    mask_data_url: Optional[str] = None
+    # full mode (Gemini): the original photo + the hairstyle picture as a reference
+    photo_data_url: Optional[str] = None
+    reference_data_url: Optional[str] = None
+
+
+class HairAIResponse(BaseModel):
+    image_data_url: str
+    provider: str
+    mode: Literal["patch", "full"]
+    remaining_today: int

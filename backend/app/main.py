@@ -5,7 +5,7 @@ from sqlalchemy import text
 from app import booking_models
 from app.config import get_settings
 from app.database import Base,engine
-from app.routers import admin,auth,booking,favorites,feedback,golden_ratio,profile,scans
+from app.routers import admin,auth,booking,favorites,feedback,golden_ratio,hair_ai,profile,scans
 from app.services.face_shape_predictor import get_predictor
 import logging,threading
 settings=get_settings()
@@ -30,6 +30,6 @@ async def lifespan(app):
  yield
 app=FastAPI(title=settings.app_name,description="Face analysis and verified barber booking API",version="1.2.0",lifespan=lifespan)
 app.add_middleware(CORSMiddleware,allow_origins=settings.cors_origin_list,allow_credentials=True,allow_methods=["*"],allow_headers=["*"])
-for r in (auth,scans,favorites,golden_ratio,profile,admin,booking,feedback):app.include_router(r.router)
+for r in (auth,scans,favorites,golden_ratio,profile,admin,booking,feedback,hair_ai):app.include_router(r.router)
 @app.get("/health",tags=["health"])
 async def health_check():return {"status":"ok"}

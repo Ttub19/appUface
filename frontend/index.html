@@ -787,6 +787,17 @@
                                 <output id="hair-offset-value" for="hair-offset">อัตโนมัติ</output>
                                 <button type="button" onclick="setHairOffset(0)" class="btn btn-ghost btn-sm">รีเซ็ต</button>
                             </div>
+                            <div id="hair-ai-panel" class="hidden hair-ai-panel">
+                                <div class="hair-ai-actions">
+                                    <button id="hair-ai-btn" type="button" onclick="generateRealisticHair()" class="btn btn-dark"><i class="fa-solid fa-wand-magic-sparkles"></i><span id="hair-ai-btn-label">สร้างภาพสมจริง</span></button>
+                                    <button id="hair-ai-toggle" type="button" onclick="toggleRealisticView()" class="hidden btn btn-ghost btn-sm">ดูแบบเดิม (2D)</button>
+                                </div>
+                                <p class="hair-ai-note"><span id="hair-ai-quota"></span> · ใช้ AI จาก <span id="hair-ai-provider"></span></p>
+                                <label id="hair-ai-consent" class="hidden hair-ai-consent">
+                                    <input id="hair-ai-agree" type="checkbox">
+                                    <span>ยอมรับให้ส่งรูปนี้ไปให้บริการ AI ภายนอกสร้างภาพ (uShape ไม่เก็บรูปไว้ที่เซิร์ฟเวอร์) — ต่างจากการลองผมปกติที่ประมวลผลในเครื่องของคุณ</span>
+                                </label>
+                            </div>
                             <button type="button" onclick="captureHairPhoto()" class="btn btn-primary"><i class="fa-solid fa-download"></i>บันทึกรูป</button>
                             <button type="button" onclick="resetHairPhoto()" class="btn btn-secondary"><i class="fa-solid fa-image"></i>เปลี่ยนรูป</button>
                         </div>

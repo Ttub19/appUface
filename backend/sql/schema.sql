@@ -99,3 +99,14 @@ CREATE TABLE IF NOT EXISTS feedback (
 );
 CREATE INDEX IF NOT EXISTS ix_feedback_status ON feedback (status);
 CREATE INDEX IF NOT EXISTS ix_feedback_created_at ON feedback (created_at);
+
+-- "สร้างภาพสมจริง" (AI hair) generations, for the daily per-member limit
+CREATE TABLE IF NOT EXISTS hair_generations (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    provider    VARCHAR(16) NOT NULL,
+    style_id    VARCHAR(40) NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ix_hair_generations_user_id ON hair_generations (user_id);
+CREATE INDEX IF NOT EXISTS ix_hair_generations_created_at ON hair_generations (created_at);

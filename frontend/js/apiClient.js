@@ -83,6 +83,12 @@ export const apiClient = {
     },
 
     // ---- Feedback / contact admin ----
+    hairRealisticConfig() {
+        return request("GET", "/hair/realistic/config");
+    },
+    generateRealisticHair(payload) {
+        return request("POST", "/hair/realistic", { body: payload });
+    },
     sendFeedback(payload) {
         return request("POST", "/feedback", { body: payload });
     },
