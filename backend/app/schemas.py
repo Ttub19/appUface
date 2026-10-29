@@ -99,12 +99,15 @@ class BarberReview(BaseModel):
 class PredictRequest(BaseModel):
     """Body for POST /scans/predict — accepts the same base64 data URL the front-end already produces."""
     image_data_url: str = Field(min_length=10, description="base64 data URL of the captured/uploaded photo")
+    gender: Optional[Literal["male", "female"]] = Field(
+        default=None, description="picks the gender-specific model when the server has one")
 
 
 class PredictResponse(BaseModel):
     face_shape: FaceShapeId
     face_shape_name: str
     confidence: float
+    model: str = "default"
 
 
 class ScanCreate(BaseModel):

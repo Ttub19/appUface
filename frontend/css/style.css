@@ -866,3 +866,8 @@ img { -webkit-user-drag: none; }
 .chip-btn { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--ink-3); font-size: 13px; font-weight: 500; cursor: pointer; }
 .chip-btn.is-active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .chip-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---- Hair try-on on a still photo ---- */
+.hair-photo-stage canvas { object-fit: contain; }
+.hair-photo-stage video.is-mirrored { transform: scaleX(-1); }
+.hair-source-actions { margin-top: 14px; }

@@ -1,6 +1,6 @@
 import { showToast } from "./toast.js";
 import { FaceARSession } from "../cameraUtils.js";
-import { ArRenderer, ArTransformSmoother, GLASSES_SHAPES, GLASSES_STYLE_CONFIG } from "../arRenderer.js";
+import { ArRenderer, ArTransformSmoother, GLASSES_SHAPES, GLASSES_STYLE_CONFIG, GLASSES_TEMPLES, estimateYaw, templeArm } from "../arRenderer.js";
 import {
     GLASSES_CATEGORIES, DEFAULT_GLASSES_STYLE, glassesInCategory, isInCategory, getGlassesItem, resolveGlassesStyle,
 } from "../glassesCatalog.js";
@@ -191,6 +191,7 @@ function onGlassesFrame(landmarks, w, h) {
 
     if (!landmarks) {
         group.style.opacity = "0";
+        drawTemple(null);
         hint.classList.remove("hidden");
         glassesSmoother.reset();
         lastTrackedAt = 0;
@@ -200,18 +201,47 @@ function onGlassesFrame(landmarks, w, h) {
     try {
         const fit = GLASSES_STYLE_CONFIG[currentGlassesStyle] || GLASSES_STYLE_CONFIG[DEFAULT_GLASSES_STYLE];
         const raw = ArRenderer.getEyeTransform(landmarks, w, h, { verticalOffsetRatio: fit.verticalOffsetRatio });
-        const t = glassesSmoother.update(raw);
+        raw.yaw = estimateYaw(landmarks, w, h);
+        const t = glassesSmoother.update(raw);   // yaw is smoothed too, so the arm doesn't flicker
         const scale = ArRenderer.fitGlassesScale(t, fit, glassesSizePercent / 100);
         ArRenderer.applyTransform(group, t.cx, t.cy, t.angle, scale);
-        lastPose = { cx: t.cx, cy: t.cy, angle: t.angle, scale };
+        const arm = templeArm(t, scale, GLASSES_TEMPLES[currentGlassesStyle]);
+        drawTemple(arm);
+        lastPose = { cx: t.cx, cy: t.cy, angle: t.angle, scale, arm };
         lastTrackedAt = performance.now();
         hint.classList.add("hidden");
         group.style.opacity = "1";
     } catch (error) {
         console.error("Glasses tracking failed:", error);
         group.style.opacity = "0";
+        drawTemple(null);
         hint.classList.remove("hidden");
     }
+}
+
+/** The visible temple arm (ขาแว่น) as an SVG polygon behind the frame; null hides it. */
+function drawTemple(arm) {
+    const el = document.getElementById("glasses-temple");
+    if (!el) return;
+    if (!arm) { el.setAttribute("opacity", "0"); return; }
+    el.setAttribute("points", arm.points.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" "));
+    el.setAttribute("fill", arm.color);
+    el.setAttribute("opacity", arm.opacity.toFixed(3));
+}
+
+function drawTempleOnto(ctx, arm) {
+    if (!arm) return;
+    ctx.save();
+    ctx.globalAlpha = arm.opacity;
+    ctx.fillStyle = arm.color;
+    ctx.strokeStyle = "rgba(0,0,0,.25)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    arm.points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
 }
 
 /**
@@ -225,6 +255,7 @@ async function drawGlassesOnto(ctx) {
     const src = el.getAttribute("href") || el.getAttribute("xlink:href");
     const img = await loadImage(src);
     const num = (name) => Number(el.getAttribute(name)) || 0;
+    drawTempleOnto(ctx, lastPose.arm);   // arm first: the frame's end piece covers the joint
     ctx.save();
     ctx.translate(lastPose.cx, lastPose.cy);
     ctx.rotate(lastPose.angle);
@@ -286,6 +317,7 @@ export function stopGlassesSession() {
     document.getElementById("glasses-video").classList.add("hidden");
     document.getElementById("glasses-overlay").classList.add("hidden");
     document.getElementById("glasses-shape-group").style.opacity = "0";
+    drawTemple(null);
     document.getElementById("glasses-controls").classList.add("hidden");
     document.getElementById("glasses-preview-container").classList.add("hidden");
     document.getElementById("glasses-face-hint").classList.add("hidden");

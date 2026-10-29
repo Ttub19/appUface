@@ -138,7 +138,12 @@ export const ArRenderer = {
     }
 };
 
-/** Frame-rate-independent low-pass filter for stable AR placement. */
+/**
+ * Frame-rate-independent low-pass filter for stable AR placement.
+ * Adaptive: while the head is almost still the filter is ~1.8x slower (no
+ * jitter), on quick moves ~0.6x (no lag). Every numeric field is smoothed;
+ * the angle wraps.
+ */
 export class ArTransformSmoother {
     constructor({ timeConstantMs = 85, snapAfterMs = 350 } = {}) {
         this.timeConstantMs = timeConstantMs;
@@ -155,12 +160,14 @@ export class ArTransformSmoother {
         const elapsed = Math.max(0, timestamp - this.lastTimestamp);
         this.lastTimestamp = timestamp;
         if (elapsed >= this.snapAfterMs) { this.state = next; return { ...this.state }; }
-        const t = Math.max(0, Math.min(1, 1 - Math.exp(-elapsed / Math.max(this.timeConstantMs, 1))));
-        this.state.cx = lerp(this.state.cx, next.cx, t);
-        this.state.cy = lerp(this.state.cy, next.cy, t);
-        this.state.span = lerp(this.state.span, next.span, t);
-        if (Number.isFinite(next.faceWidth)) {
-            this.state.faceWidth = Number.isFinite(this.state.faceWidth) ? lerp(this.state.faceWidth, next.faceWidth, t) : next.faceWidth;
+        // movement in eye-spans per second decides how hard to smooth
+        const moved = Math.hypot(next.cx - this.state.cx, next.cy - this.state.cy) / Math.max(this.state.span, 1);
+        const speed = elapsed > 0 ? moved / (elapsed / 1000) : 0;
+        const factor = Math.max(.6, Math.min(1.8, 1.8 - speed * .6));
+        const t = Math.max(0, Math.min(1, 1 - Math.exp(-elapsed / Math.max(this.timeConstantMs * factor, 1))));
+        for (const [key, value] of Object.entries(next)) {
+            if (key === "angle" || !Number.isFinite(value)) continue;
+            this.state[key] = Number.isFinite(this.state[key]) ? lerp(this.state[key], value, t) : value;
         }
         this.state.angle += angleDelta(this.state.angle, next.angle) * t;
         return { ...this.state };
@@ -176,6 +183,95 @@ export class ArTransformSmoother {
  * the tracked eye centers.
  */
 export const GLASSES_REF_EYE_SPAN = 180;
+
+/**
+ * Temple arms (ขาแว่น). The photos are front views with the arms removed, so
+ * the arms are drawn by code: from the hinge (l / r, in the shape's local
+ * units, measured from each photo's end pieces) back to the ear. Only the arm
+ * on the side turned towards the camera is drawn, and only once the head
+ * turns past ~7°: facing the camera the arms point straight back and are
+ * hidden behind the frame, and the far arm is always hidden by the head.
+ * width = arm height in local units (acetate ~9, metal ~5); colour sampled
+ * from the frame near the hinge.
+ */
+export const GLASSES_TEMPLES = Object.freeze({
+    "aviator-gold": { l: [-164.0, -15.9], r: [169.7, -15.9], width: 5, color: "#d2b07e" },
+    "browline-gold": { l: [-160.9, -24.1], r: [164.3, -24.1], width: 7, color: "#151515" },
+    "browline-gold2": { l: [-159.6, -23.9], r: [161.0, -23.9], width: 7, color: "#171616" },
+    "browline-silver": { l: [-160.2, -23.6], r: [161.9, -23.6], width: 7, color: "#1e1e1f" },
+    "cateye-amber": { l: [-157.4, -27.2], r: [156.2, -27.2], width: 9, color: "#9d4904" },
+    "cateye-black": { l: [-155.0, -28.6], r: [156.4, -28.6], width: 9, color: "#131313" },
+    "cateye-red": { l: [-158.7, -27.5], r: [157.7, -27.5], width: 9, color: "#8e0f15" },
+    "classic-tortoise": { l: [-159.6, -31.0], r: [163.9, -31.0], width: 9, color: "#130e0c" },
+    "clear-square": { l: [-156.6, -22.1], r: [159.1, -22.1], width: 9, color: "#bababb", opacity: 0.65 },
+    "colorblock-square": { l: [-160.5, -27.3], r: [162.6, -27.3], width: 9, color: "#171817" },
+    "hexagon-gold": { l: [-164.0, -21.8], r: [163.4, -21.8], width: 5, color: "#be9f75" },
+    "hexagon-gunmetal": { l: [-163.5, -21.8], r: [161.6, -21.8], width: 5, color: "#66605b" },
+    "hexagon-tortoise": { l: [-164.6, -11.5], r: [166.9, -11.5], width: 9, color: "#22130a" },
+    "oval-gold-wire": { l: [-164.9, -19.1], r: [165.0, -19.1], width: 5, color: "#c2a77b" },
+    "rect-thin-metal": { l: [-165.5, -24.1], r: [163.6, -24.1], width: 5, color: "#baa791" },
+    "rimless-silver-bar": { l: [-168.5, -11.3], r: [177.6, -11.3], width: 5, color: "#beb8b3" },
+    "rimless-gunmetal-square": { l: [-164.4, -23.0], r: [169.8, -23.0], width: 5, color: "#9d9791" },
+    "rimless-gunmetal-aviator": { l: [-177.4, -9.1], r: [187.5, -9.1], width: 5, color: "#898176" },
+    "rimless-rosegold-cateye": { l: [-161.5, -27.5], r: [168.5, -27.5], width: 5, color: "#dbbfaf" },
+    "round-gold-wire": { l: [-163.9, -22.9], r: [166.5, -22.9], width: 5, color: "#caa878" },
+    "round-gunmetal": { l: [-166.6, -23.6], r: [166.0, -23.6], width: 5, color: "#77726f" },
+    "round-tortoise": { l: [-165.3, -23.5], r: [170.0, -23.5], width: 9, color: "#392118" },
+    "sport-wrap": { l: [-188.8, -33.9], r: [193.7, -33.9], width: 10, color: "#353636" },
+    "square-black": { l: [-162.3, -30.9], r: [165.0, -30.9], width: 9, color: "#171716" },
+    "square-bold-tortoise": { l: [-160.5, -29.0], r: [161.4, -29.0], width: 9, color: "#171311" },
+    "square-green": { l: [-162.2, -27.6], r: [165.8, -27.6], width: 9, color: "#045938" },
+    "square-oversized-tortoise": { l: [-155.4, -8.5], r: [157.4, -8.5], width: 9, color: "#180f09" },
+    "wayfarer-black": { l: [-161.0, -30.0], r: [164.8, -30.0], width: 9, color: "#0f1010" },
+});
+
+const smoothstep = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+/** Yaw estimate (radians, + = nose towards image right) from where the nose sits between the temples. */
+export function estimateYaw(lm, w, h) {
+    const p = (i) => ({ x: lm[i].x * w, y: lm[i].y * h });
+    if (![LM.TEMPLE_L, LM.TEMPLE_R, LM.NOSE_TIP].every((i) => isLandmarkPoint(lm?.[i]))) return 0;
+    const a = p(LM.TEMPLE_L), b = p(LM.TEMPLE_R), nose = p(LM.NOSE_TIP);
+    const [left, right] = a.x <= b.x ? [a, b] : [b, a];
+    const dx = right.x - left.x, dy = right.y - left.y, width = Math.hypot(dx, dy);
+    if (width <= EPS) return 0;
+    const offset = ((nose.x - (left.x + right.x) / 2) * dx + (nose.y - (left.y + right.y) / 2) * dy) / (width * width);
+    return Math.sign(offset) * Math.asin(Math.min(Math.abs(offset) * 2.2, .9));
+}
+
+/** Temple arm length from hinge to ear, as a fraction of the face width at the temples (~10 cm vs ~14 cm). */
+export const TEMPLE_LENGTH_RATIO = .7;
+
+/**
+ * Screen-space polygon of the visible temple arm, or null when no arm shows.
+ * The arm points straight back from the hinge, so on screen it runs outwards
+ * along the eye line with length armLength·sin(yaw), sloping down slightly
+ * towards the ear (as a real arm does from the side).
+ * t: smoothed transform (cx, cy, angle, yaw, faceWidth); scale: glasses scale.
+ */
+export function templeArm(t, scale, temple) {
+    if (!temple || !t || !Number.isFinite(t.yaw) || !(t.faceWidth > 0)) return null;
+    const yawAbs = Math.abs(t.yaw);
+    const opacity = smoothstep(.12, .32, yawAbs) * (temple.opacity ?? 1);
+    if (opacity <= .01) return null;
+    const c = Math.cos(t.angle), s = Math.sin(t.angle);
+    const toScreen = ([lx, ly]) => ({ x: t.cx + scale * (lx * c - ly * s), y: t.cy + scale * (lx * s + ly * c) });
+    const leftSide = t.yaw > 0;                     // nose to the right -> the image-left side of the head shows
+    const hinge = toScreen(leftSide ? temple.l : temple.r);
+    const out = leftSide ? -1 : 1;                  // outwards along the eye line
+    const len = TEMPLE_LENGTH_RATIO * t.faceWidth * Math.sin(yawAbs);
+    if (len < 4) return null;
+    const ux = c * out, uy = s * out;               // along the arm (screen)
+    const vx = -s, vy = c;                          // face "down"
+    const ex = hinge.x + ux * len + vx * len * .15, ey = hinge.y + uy * len + vy * len * .15;
+    const dx = ex - hinge.x, dy = ey - hinge.y, d = Math.hypot(dx, dy);
+    const nx = -dy / d, ny = dx / d;
+    const w0 = temple.width * scale / 2, w1 = w0 * .75;
+    // start slightly inside the hinge so the end piece covers the joint
+    const sx = hinge.x - dx / d * w0, sy = hinge.y - dy / d * w0;
+    const pts = [[sx + nx * w0, sy + ny * w0], [ex + nx * w1, ey + ny * w1], [ex - nx * w1, ey - ny * w1], [sx - nx * w0, sy - ny * w0]];
+    return { points: pts, color: temple.color, opacity, side: leftSide ? "left" : "right" };
+}
 
 /**
  * Style tuning for the 28 photo-based styles. frameWidth is the image's

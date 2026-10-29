@@ -113,15 +113,14 @@ export async function runAI() {
     const spinner = document.getElementById("loading-spinner");
     spinner.classList.remove("hidden");
     try {
-        const prediction = await apiClient.predictFaceShape(appState.selectedImg);
+        const gender = document.getElementById("gender-pref").value;
+        const prediction = await apiClient.predictFaceShape(appState.selectedImg, gender);
         // The backend owns the prediction (shape id + confidence); the rich style
         // recommendations (hair/glasses/jewelry tips) are presentation content that
         // lives in the front-end's local faceData table, keyed by the same shape id.
         const styleInfo = faceData.find((s) => s.id === prediction.face_shape) || faceData[0];
         appState.resultObj = styleInfo;
         appState.lastConfidence = prediction.confidence;
-
-        const gender = document.getElementById("gender-pref").value;
         appState.genderPref = gender;
 
         document.getElementById("res-photo").src = appState.selectedImg;

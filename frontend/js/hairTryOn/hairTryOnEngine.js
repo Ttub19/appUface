@@ -351,3 +351,206 @@ export class HairTryOnSession {
         ctx.restore();
     }
 }
+
+// ---------------------------------------------------------------------------
+// Still-photo try-on (the default since v3): the same pipeline run ONCE on one
+// photo instead of every camera frame. With a single frame there is nothing to
+// jitter, segmentation can run at a higher resolution, and the result is the
+// same every time for the same photo + settings.
+// ---------------------------------------------------------------------------
+const PHOTO_MAX_SIDE = 1280;        // photos are downscaled to this before processing
+const PHOTO_SEGMENT_WIDTH = 512;    // hair mask resolution (live mode uses 384)
+export const NO_FACE_IN_PHOTO = "ไม่พบใบหน้าในรูป กรุณาใช้รูปหน้าตรงที่เห็นใบหน้าและหน้าผากชัดเจน";
+
+let photoModelsPromise = null;
+
+/** Same two models as the live mode, in IMAGE running mode (one-shot detect / segment). */
+export function loadHairPhotoModels() {
+    photoModelsPromise ??= (async () => {
+        const vision = await import(`${TASKS_VISION_BASE}/vision_bundle.mjs`);
+        const fileset = await vision.FilesetResolver.forVisionTasks(`${TASKS_VISION_BASE}/wasm`);
+        const [faceLandmarker, hairSegmenter] = await Promise.all([
+            createTask(vision.FaceLandmarker, fileset, {
+                baseOptions: { modelAssetPath: FACE_LANDMARKER_MODEL },
+                runningMode: "IMAGE",
+                numFaces: 1,
+                outputFacialTransformationMatrixes: true,
+                outputFaceBlendshapes: false,
+            }),
+            createTask(vision.ImageSegmenter, fileset, {
+                baseOptions: { modelAssetPath: HAIR_SEGMENTER_MODEL },
+                runningMode: "IMAGE",
+                outputCategoryMask: false,
+                outputConfidenceMasks: true,
+            }),
+        ]);
+        return { faceLandmarker, hairSegmenter };
+    })().catch((error) => {
+        photoModelsPromise = null;
+        throw error;
+    });
+    return photoModelsPromise;
+}
+
+/**
+ * Try-on on a still photo:
+ *   setPhoto() — landmarks + head pose + hair mask + erase layer + hairline, computed once
+ *   render()   — photo → erase layer → hairstyle (re-run on every style / colour / size change)
+ */
+export class HairPhotoSession {
+    constructor({ canvas }) {
+        if (!canvas) throw new TypeError("HairPhotoSession requires a canvas");
+        this.canvas = canvas;
+        this.ctx = canvas.getContext("2d");
+        this.base = document.createElement("canvas");
+        this.segCanvas = document.createElement("canvas");
+        this.segCtx = this.segCanvas.getContext("2d", { willReadFrequently: true });
+        this.eraser = new HairEraser();
+        this.prepared = new Map();
+        this.models = null;
+        this.face = null;          // { landmarks, pose, headWidthPx }
+        this.style = null;
+        this.rawImage = null;
+        this.styleImage = null;
+        this.colorId = DEFAULT_HAIR_COLOR;
+        this.hairlineLift = LANDMARK10_BELOW_HAIRLINE;
+        this.eraseEnabled = true;
+        this.sizeScale = 1;
+        this.offsetY = 0;          // manual up/down, in face widths (+ = lower)
+    }
+
+    async load() {
+        this.models ??= await loadHairPhotoModels();
+        return this;
+    }
+
+    get hasPhoto() { return Boolean(this.face); }
+
+    /**
+     * Analyse a photo (img / canvas / video frame). mirror = flip like a selfie preview.
+     * Throws NO_FACE_IN_PHOTO when no face is found (the previous photo is kept).
+     */
+    setPhoto(source, { mirror = false } = {}) {
+        if (!this.models) throw new Error("ยังโหลดโมเดลไม่เสร็จ");
+        const sw = source.naturalWidth || source.videoWidth || source.width;
+        const sh = source.naturalHeight || source.videoHeight || source.height;
+        if (!(sw > 0 && sh > 0)) throw new Error("อ่านรูปไม่ได้");
+        const k = Math.min(1, PHOTO_MAX_SIDE / Math.max(sw, sh));
+        const w = Math.round(sw * k), h = Math.round(sh * k);
+        const base = document.createElement("canvas");
+        base.width = w; base.height = h;
+        const bctx = base.getContext("2d");
+        if (mirror) { bctx.translate(w, 0); bctx.scale(-1, 1); }
+        bctx.drawImage(source, 0, 0, w, h);
+
+        const result = this.models.faceLandmarker.detect(base);
+        const landmarks = result.faceLandmarks?.[0] || null;
+        if (!landmarks) throw new Error(NO_FACE_IN_PHOTO);
+        const matrix = result.facialTransformationMatrixes?.[0]?.data || null;
+        const pose = matrix ? eulerFromTransformMatrix(matrix) : null;
+
+        // hair mask on a downscaled copy (same as live mode, just sharper)
+        const segW = Math.min(PHOTO_SEGMENT_WIDTH, w), segH = Math.round(segW * h / w);
+        this.segCanvas.width = segW; this.segCanvas.height = segH;
+        this.segCtx.drawImage(base, 0, 0, segW, segH);
+        const frame = this.segCtx.getImageData(0, 0, segW, segH).data;
+        let conf = null;
+        this.models.hairSegmenter.segment(this.segCanvas, (res) => {
+            const masks = res.confidenceMasks;
+            const mask = masks?.[masks.length - 1]; // hair_segmenter: [background, hair]
+            if (mask && mask.width === segW && mask.height === segH) conf = new Float32Array(mask.getAsFloat32Array());
+        });
+
+        this.base = base;
+        this.eraser.reset();
+        this.hairlineLift = LANDMARK10_BELOW_HAIRLINE;
+        if (conf) {
+            const skinPoints = [LM.FOREHEAD_CENTER, LM.CHEEK_SKIN_L, LM.CHEEK_SKIN_R]
+                .map((i) => landmarks[i]).filter(Boolean).map((p) => ({ x: p.x * segW, y: p.y * segH }));
+            this.eraser.update({ conf, frame, width: segW, height: segH, ellipse: faceEllipse(landmarks, segW, segH), skinPoint: skinPoints[0], skinPoints });
+            const facingCamera = !pose || (Math.abs(pose.yaw) <= .35 && Math.abs(pose.pitch) <= .3);
+            const lift = facingCamera ? measureHairlineLift({ conf, width: segW, height: segH, landmarks }) : null;
+            if (lift !== null) {
+                this.hairlineLift = Math.min(HAIRLINE_LIFT_RANGE[1], Math.max(HAIRLINE_LIFT_RANGE[0], lift * HAIR_LANDMARK_WIDTH_RATIO));
+            }
+        }
+        this.face = { landmarks, pose, headWidthPx: new HeadScaleFusion().update(landmarks, w, h, pose) };
+        this.prepared.clear();                       // "เหมือนผมฉัน" depends on this photo's hair colour
+        if (this.style && this.rawImage) this.styleImage = this._preparedFor(this.style, this.rawImage);
+        this.render();
+        return { width: w, height: h, hairFound: Boolean(conf && this.eraser.colors.hair) };
+    }
+
+    setStyle(style, image) {
+        this.style = style;
+        this.rawImage = image;
+        this.styleImage = this._preparedFor(style, image);
+        this.render();
+    }
+
+    setHairColor(colorId) {
+        this.colorId = colorId || DEFAULT_HAIR_COLOR;
+        if (this.style && this.rawImage) this.styleImage = this._preparedFor(this.style, this.rawImage);
+        this.render();
+    }
+
+    setSizeScale(scale) { this.sizeScale = Number.isFinite(scale) && scale > 0 ? scale : 1; this.render(); }
+    setOffsetY(faceWidths) { this.offsetY = Number.isFinite(faceWidths) ? faceWidths : 0; this.render(); }
+    setEraseEnabled(enabled) { this.eraseEnabled = Boolean(enabled); this.render(); }
+
+    _preparedFor(style, image) {
+        const rgb = resolveHairRgb(this.colorId, this.eraser.colors.hair);
+        const key = `${style.id}|${rgb ? rgb.join(",") : "original"}`;
+        let canvas = this.prepared.get(key);
+        if (!canvas) {
+            try {
+                canvas = prepareHairCanvas(image, { rgb, faceWidthPx: style.faceWidthPx || 300 });
+            } catch (error) {
+                console.warn("hair image preparation failed, drawing the original", error);
+                return image;
+            }
+            this.prepared.set(key, canvas);
+            if (this.prepared.size > PREPARED_CACHE_SIZE) this.prepared.delete(this.prepared.keys().next().value);
+        }
+        return canvas;
+    }
+
+    render() {
+        if (!this.face) return;
+        const { width: w, height: h } = this.base;
+        if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.clearRect(0, 0, w, h);
+        ctx.drawImage(this.base, 0, 0);
+        if (this.eraseEnabled) this.eraser.draw(ctx, w, h);
+        if (this.style && this.styleImage) {
+            const { landmarks, pose, headWidthPx } = this.face;
+            const p = computeHairPlacement(landmarks, w, h, pose, this.style, headWidthPx);
+            const style = this.style, image = this.styleImage;
+            const vb = style.viewBox || HAIR_ASSET_VIEWBOX;
+            const [dw, dh] = image instanceof HTMLCanvasElement ? [image.width, image.height] : [vb.width, vb.height];
+            const fw = style.faceWidthPx || 300;
+            const anchorY = (Number.isFinite(style.hairlineY) ? style.hairlineY + this.hairlineLift * fw : style.anchor.y) - this.offsetY * fw;
+            if (this.colorId !== "mine" && canvasFilterSupported()) {
+                ctx.filter = `brightness(${lightingFactor(this.eraser.colors.skin).toFixed(3)})`;
+            }
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.rotation);
+            ctx.scale(p.scaleX * this.sizeScale, p.scaleY * this.sizeScale);
+            ctx.drawImage(image, -style.anchor.x, -anchorY, dw, dh);
+        }
+        ctx.restore();
+    }
+
+    capture(type = "image/jpeg", quality = .92) {
+        return this.face ? this.canvas.toDataURL(type, quality) : null;
+    }
+
+    clear() {
+        this.face = null;
+        this.eraser.reset();
+        this.prepared.clear();
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+}

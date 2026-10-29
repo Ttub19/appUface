@@ -36,7 +36,7 @@ async def predict(
     """
     try:
         # model inference is CPU-bound (~0.1-0.5 s): keep it off the event loop
-        result = await run_in_threadpool(predictor.predict, payload.image_data_url)
+        result = await run_in_threadpool(predictor.predict, payload.image_data_url, payload.gender)
     except ValueError as exc:  # bad image / no face found
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except ModelUnavailableError as exc:
@@ -46,6 +46,7 @@ async def predict(
         face_shape=result.face_shape,
         face_shape_name=result.face_shape_name,
         confidence=result.confidence,
+        model=result.model,
     )
 
 

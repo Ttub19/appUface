@@ -17,7 +17,7 @@ import { removeFavorite } from "./ui/favoritesScreen.js";
 import { openGuideShape, closeGuideShape, tryHairForShape, tryGlassesForShape } from "./ui/guideScreen.js";
 import { startGoldenSession, stopGoldenSession, saveGoldenRatioResult } from "./ui/goldenScreen.js";
 import { selectGlassesStyle, startGlassesSession, captureGlassesPhoto, stopGlassesSession, setGlassesSize } from "./ui/glassesScreen.js";
-import { selectHairStyle, startHairSession, captureHairPhoto, stopHairSession, setHairErase, setHairShapeFilter, setHairSize, setHairColor, tryHairStyle } from "./ui/hairScreen.js";
+import { selectHairStyle, captureHairPhoto, stopHairSession, setHairErase, setHairShapeFilter, setHairSize, setHairColor, tryHairStyle, setHairOffset, useScanPhotoForHair, openHairPhotoPicker, handleHairPhotoUpload, startHairCamera, snapHairPhoto, resetHairPhoto } from "./ui/hairScreen.js";
 import { saveToDB, removeHistoryRow, filterHistory, exportCSV } from "./ui/historyScreen.js";
 import { saveProfile, setAccent } from "./ui/profileScreen.js";
 import { approveBarberApplication, rejectBarberApplication } from "./ui/adminScreen.js";
@@ -39,7 +39,8 @@ Object.assign(window, {
     // Virtual Glasses
     selectGlassesStyle, startGlassesSession, captureGlassesPhoto, stopGlassesSession, setGlassesSize,
     // Virtual Hairstyle
-    selectHairStyle, startHairSession, captureHairPhoto, stopHairSession, setHairErase, setHairShapeFilter, setHairSize, setHairColor, tryHairStyle,
+    selectHairStyle, captureHairPhoto, stopHairSession, setHairErase, setHairShapeFilter, setHairSize, setHairColor, tryHairStyle,
+    setHairOffset, useScanPhotoForHair, openHairPhotoPicker, handleHairPhotoUpload, startHairCamera, snapHairPhoto, resetHairPhoto,
     // history
     saveToDB, removeHistoryRow, filterHistory, exportCSV,
     // profile

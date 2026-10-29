@@ -130,8 +130,10 @@ export const apiClient = {
     },
 
     // ---- Scans ----
-    predictFaceShape(imageDataUrl) {
-        return request("POST", "/scans/predict", { body: { image_data_url: imageDataUrl }, auth: false });
+    predictFaceShape(imageDataUrl, gender = null) {
+        const body = { image_data_url: imageDataUrl };
+        if (gender === "male" || gender === "female") body.gender = gender; // server picks the model for this gender
+        return request("POST", "/scans/predict", { body, auth: false });
     },
     createScan(payload) {
         return request("POST", "/scans", { body: payload });

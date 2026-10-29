@@ -226,7 +226,7 @@
                         <ol class="home-steps">
                             <li><b>01</b><div><strong>เลือกรูปหน้าตรง</strong><span>เปิดหน้าผาก ไม่เอียงศีรษะ แสงสม่ำเสมอ</span></div></li>
                             <li><b>02</b><div><strong>ระบบอ่านโครงหน้า</strong><span>ใช้เวลาไม่ถึงนาที รูปไม่ถูกแชร์ให้ใคร</span></div></li>
-                            <li><b>03</b><div><strong>ลองทรงที่แนะนำ แล้วจองช่าง</strong><span>สวมทรงใหม่ผ่านกล้อง ก่อนตัดจริง</span></div></li>
+                            <li><b>03</b><div><strong>ลองทรงที่แนะนำ แล้วจองช่าง</strong><span>สวมทรงใหม่บนรูปของคุณ ก่อนตัดจริง</span></div></li>
                         </ol>
 
                         <div class="home-actions">
@@ -311,9 +311,9 @@
                     </div>
                     <div class="home-tools">
                         <button type="button" onclick="navigateTo('screen-hairstyle')" data-mirror="nav-hairstyle" class="home-feature">
-                            <div class="home-feature-img"><img src="assets/images/tile-hair.jpg?v=20261022b" alt="ช่างตัดผมในร้าน พร้อมให้บริการหลังลองทรงผ่านกล้อง"></div>
-                            <h3>ลองทรงผมผ่านกล้อง</h3>
-                            <p>ระบบกลบผมเดิมของคุณ แล้วสวมทรงใหม่ที่ขยับตามมุมศีรษะ ดูได้ทุกมุมก่อนตัดสินใจ</p>
+                            <div class="home-feature-img"><img src="assets/images/tile-hair.jpg?v=20261022b" alt="ช่างตัดผมในร้าน พร้อมให้บริการหลังลองทรงผม"></div>
+                            <h3>ลองทรงผมบนรูปของคุณ</h3>
+                            <p>ระบบกลบผมเดิมในรูปของคุณ แล้วสวมทรงใหม่ เปลี่ยนทรงและสีเทียบกันได้ทันทีก่อนตัดสินใจ</p>
                             <span class="more">เปิดห้องลองทรงผม <i class="fa-solid fa-arrow-right text-xs"></i></span>
                         </button>
                         <div class="index-list">
@@ -372,7 +372,7 @@
                         <div class="card p-2">
                             <button onclick="navigateTo('screen-hairstyle')" data-mirror="nav-hairstyle" class="action-row">
                                 <span class="tile-icon"><i class="fa-solid fa-scissors"></i></span>
-                                <div><strong>ลองทรงผมที่แนะนำ</strong><span>สวมทรงใหม่ผ่านกล้องได้ทันที</span></div>
+                                <div><strong>ลองทรงผมที่แนะนำ</strong><span>สวมทรงใหม่บนรูปที่วิเคราะห์ได้ทันที</span></div>
                                 <i class="fa-solid fa-chevron-right"></i>
                             </button>
                             <button onclick="navigateTo('screen-glasses')" data-mirror="nav-glasses" class="action-row">
@@ -694,6 +694,7 @@
 
                             <video id="glasses-video" class="hidden" autoplay playsinline muted></video>
                             <svg id="glasses-overlay" class="hidden" viewBox="0 0 1280 720" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+                                <polygon id="glasses-temple" points="" opacity="0" stroke="rgba(0,0,0,.25)" stroke-width="1" stroke-linejoin="round"></polygon>
                                 <g id="glasses-shape-group" class="ar-tracked-group" style="opacity:0">
                                     <g id="glasses-shape-inner"></g>
                                 </g>
@@ -739,34 +740,40 @@
                         <button onclick="navigateTo('screen-main')" aria-label="กลับหน้าแรก" class="icon-btn mt-1"><i class="fa-solid fa-arrow-left"></i></button>
                         <div>
                             <h2 class="page-title">ลองทรงผม</h2>
-                            <p class="page-sub">AI กลบผมเดิมของคุณ แล้วสวมทรงใหม่ที่ขยับตามศีรษะแบบเรียลไทม์</p>
+                            <p class="page-sub">เลือกรูปหน้าตรงหนึ่งรูป AI กลบผมเดิมแล้วสวมทรงใหม่ให้ เปลี่ยนทรง สี และขนาดได้ทันที</p>
                         </div>
                     </div>
                 </header>
 
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
                     <div class="lg:col-span-2 card p-3 tryon-stage-card">
-                        <div class="ar-stage">
+                        <div class="ar-stage hair-photo-stage">
                             <div id="hair-loading" class="hidden processing-overlay is-dark">
                                 <div class="spinner"></div>
-                                <span id="hair-loading-text" class="text-center px-6">กำลังขออนุญาตใช้กล้อง…</span>
+                                <span id="hair-loading-text" class="text-center px-6">กำลังโหลด…</span>
                             </div>
 
                             <div id="hair-placeholder" class="stage-placeholder">
                                 <span class="stage-placeholder-icon"><i class="fa-solid fa-scissors"></i></span>
-                                <p>เลือกทรงผมที่อยากลอง<br>แล้วกด "เปิดกล้องลองทรงผม"</p>
+                                <p>เลือกรูปหน้าตรงที่เห็นหน้าผากชัด<br>แล้วเลือกทรงผมที่อยากลอง</p>
                             </div>
 
-                            <video id="hair-video" class="pointer-events-none" style="opacity:0" autoplay playsinline muted></video>
-                            <canvas id="hair-stage" class="hidden"></canvas>
-                            <div id="hair-face-hint" class="hidden stage-hint">
-                                <span><i class="fa-solid fa-triangle-exclamation"></i>ยังไม่เห็นใบหน้า ลองขยับให้อยู่กลางภาพ</span>
-                            </div>
-
-                            <div id="hair-preview-container" class="hidden absolute inset-0">
-                                <img id="hair-preview" class="w-full h-full object-cover" alt="ภาพตัวอย่างทรงผมใหม่">
-                            </div>
+                            <video id="hair-video" class="hidden is-mirrored" autoplay playsinline muted></video>
+                            <canvas id="hair-stage" class="hidden" aria-label="รูปของคุณกับทรงผมใหม่"></canvas>
                         </div>
+
+                        <div id="hair-source-actions" class="stage-toolbar hair-source-actions">
+                            <button id="hair-use-scan" type="button" onclick="useScanPhotoForHair()" class="btn btn-primary hidden"><i class="fa-solid fa-image-portrait"></i>ใช้รูปที่วิเคราะห์ไว้</button>
+                            <button type="button" onclick="openHairPhotoPicker()" class="btn btn-secondary"><i class="fa-solid fa-upload"></i>อัปโหลดรูป</button>
+                            <button type="button" onclick="startHairCamera()" class="btn btn-secondary"><i class="fa-solid fa-camera"></i>ถ่ายรูปจากกล้อง</button>
+                            <input id="hair-file" type="file" accept="image/*" class="hidden" onchange="handleHairPhotoUpload(this)">
+                        </div>
+
+                        <div id="hair-camera-controls" class="hidden stage-toolbar">
+                            <button type="button" onclick="snapHairPhoto()" class="btn btn-primary btn-lg"><i class="fa-solid fa-camera"></i>ถ่ายรูปนี้</button>
+                            <button type="button" onclick="resetHairPhoto()" class="btn btn-secondary">ยกเลิก</button>
+                        </div>
+
                         <div id="hair-controls" class="hidden stage-toolbar">
                             <div class="tryon-size-control">
                                 <label for="hair-size">ขนาดทรงผม</label>
@@ -774,13 +781,16 @@
                                 <output id="hair-size-value" for="hair-size">พอดีหัว</output>
                                 <button type="button" onclick="setHairSize(100)" class="btn btn-ghost btn-sm">รีเซ็ต</button>
                             </div>
-                            <button onclick="captureHairPhoto()" class="btn btn-primary"><i class="fa-solid fa-camera"></i>ถ่ายรูป</button>
-                            <button onclick="stopHairSession()" class="btn btn-secondary">ปิดกล้อง</button>
+                            <div class="tryon-size-control">
+                                <label for="hair-offset">ตำแหน่งขึ้น-ลง</label>
+                                <input id="hair-offset" type="range" min="-15" max="15" step="1" value="0" oninput="setHairOffset(this.value)" aria-describedby="hair-offset-value">
+                                <output id="hair-offset-value" for="hair-offset">อัตโนมัติ</output>
+                                <button type="button" onclick="setHairOffset(0)" class="btn btn-ghost btn-sm">รีเซ็ต</button>
+                            </div>
+                            <button type="button" onclick="captureHairPhoto()" class="btn btn-primary"><i class="fa-solid fa-download"></i>บันทึกรูป</button>
+                            <button type="button" onclick="resetHairPhoto()" class="btn btn-secondary"><i class="fa-solid fa-image"></i>เปลี่ยนรูป</button>
                         </div>
-                        <button id="hair-open-btn" onclick="startHairSession()" class="btn btn-primary btn-lg btn-block tryon-start-btn">
-                            <i class="fa-solid fa-camera"></i>เปิดกล้องลองทรงผม
-                        </button>
-                        <p class="stage-note"><i class="fa-solid fa-lock mr-1"></i>ประมวลผลบนเครื่องของคุณ ภาพจากกล้องไม่ถูกส่งขึ้นเซิร์ฟเวอร์</p>
+                        <p class="stage-note"><i class="fa-solid fa-lock mr-1"></i>ประมวลผลบนเครื่องของคุณ รูปไม่ถูกส่งขึ้นเซิร์ฟเวอร์</p>
                     </div>
 
                     <div class="lg:col-span-1 tryon-panel">

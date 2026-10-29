@@ -2,7 +2,7 @@ import { showToast } from "./toast.js";
 import { appState } from "../state.js";
 import { faceData } from "../data.js";
 import { navigateTo } from "./navigation.js";
-import { HairTryOnSession } from "../hairTryOn/hairTryOnEngine.js";
+import { HairPhotoSession } from "../hairTryOn/hairTryOnEngine.js";
 import {
     HAIR_CATEGORIES, HAIR_STYLES, filterHairStyles, genderCategory, getHairStyle, loadHairImage, preloadHairImages, recommendHairStyles,
 } from "../hairTryOn/hairAssets.js";
@@ -19,7 +19,9 @@ let shapeFilter = "all";
 let categoryFilter = "all";
 let autoFilteredFor = null;
 let eraseEnabled = true;
-let hairSession = null;
+let hairSession = null;      // HairPhotoSession: one photo, re-rendered on every change
+let cameraStream = null;     // only while taking the photo
+let hairOffsetPercent = 0;   // manual up/down, % of face width (+ = lower)
 let hairSizePercent = loadHairSize();
 let hairColorId = loadHairColor();
 
@@ -62,6 +64,17 @@ export function setHairSize(value) {
     syncHairSizeUI();
 }
 
+/** Manual up/down for the still photo (−15 … +15 % of the face width). */
+export function setHairOffset(value) {
+    const n = Math.round(Number(value));
+    hairOffsetPercent = Number.isFinite(n) ? Math.min(15, Math.max(-15, n)) : 0;
+    hairSession?.setOffsetY(hairOffsetPercent / 100);
+    const input = document.getElementById("hair-offset");
+    const output = document.getElementById("hair-offset-value");
+    if (input) input.value = String(hairOffsetPercent);
+    if (output) output.textContent = hairOffsetPercent === 0 ? "อัตโนมัติ" : `${hairOffsetPercent > 0 ? "ลง" : "ขึ้น"} ${Math.abs(hairOffsetPercent)}%`;
+}
+
 /** Called by navigation when the screen opens: pre-filter to the user's analysed face shape and gender. */
 export function initHairScreen() {
     const analysed = analysedShape();
@@ -73,6 +86,8 @@ export function initHairScreen() {
         if (best && !isRecommended(getHairStyle(currentHairStyle), analysed)) currentHairStyle = best.id;
     }
     syncHairSizeUI();
+    setHairOffset(hairOffsetPercent);
+    setStageState(hairSession?.hasPhoto ? "photo" : "empty");
     renderShapeFilter();
     renderCategoryFilter();
     renderColorFilter();
@@ -82,8 +97,7 @@ export function initHairScreen() {
 
 /**
  * "ลองทรงนี้" from the result screen: open the hair screen with this style
- * selected and start the camera straight away (the tap is the user gesture
- * the camera permission needs).
+ * selected and put it straight onto the photo that was just analysed.
  */
 export function tryHairStyle(id) {
     if (appState.currentRole === "guest") {
@@ -102,7 +116,8 @@ export function tryHairStyle(id) {
     renderHairSelector();
     renderStyleInfo();
     document.querySelector(`.hair-btn[data-style="${style.id}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
-    startHairSession();
+    if (hairSession?.hasPhoto) selectHairStyle(style.id);
+    else if (appState.selectedImg) useScanPhotoForHair();
 }
 
 /** Result screen: the best hairstyles for the analysed face shape, each with a try-on button. */
@@ -314,79 +329,177 @@ export function setHairErase(enabled) {
     hairSession?.setEraseEnabled(eraseEnabled);
 }
 
-export async function startHairSession() {
-    if (hairSession) return;
-    const openBtn = document.getElementById("hair-open-btn");
+// ---------------------------------------------------------------------------
+// Still-photo flow: choose a photo (analysed photo / upload / camera snapshot)
+// -> AI runs once -> every style, colour and size change re-renders instantly.
+// ---------------------------------------------------------------------------
+function setStageState(state) {
+    // state: "empty" | "camera" | "photo"
+    const show = (id, on) => document.getElementById(id)?.classList.toggle("hidden", !on);
+    show("hair-placeholder", state === "empty");
+    show("hair-source-actions", state === "empty");
+    show("hair-video", state === "camera");
+    show("hair-camera-controls", state === "camera");
+    show("hair-stage", state === "photo");
+    show("hair-controls", state === "photo");
+    const scan = document.getElementById("hair-use-scan");
+    if (scan) scan.classList.toggle("hidden", !appState.selectedImg);
+}
+
+function setLoading(text) {
     const loading = document.getElementById("hair-loading");
-    const loadingText = document.getElementById("hair-loading-text");
-    const hint = document.getElementById("hair-face-hint");
+    if (!loading) return;
+    loading.classList.toggle("hidden", !text);
+    if (text) document.getElementById("hair-loading-text").textContent = text;
+}
 
-    loadingText.textContent = "กำลังโหลดโมเดล AI และขออนุญาตกล้อง...";
-    loading.classList.remove("hidden");
-    openBtn.disabled = true;
-    openBtn.classList.add("opacity-60", "cursor-not-allowed");
-    syncHairSizeUI();
-
-    // On phones/tablets the picker sits under the camera; bring the camera into view.
-    if (window.innerWidth < DESKTOP_MIN_WIDTH) {
-        document.querySelector("#screen-hairstyle .ar-stage")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-
-    const session = new HairTryOnSession({
-        video: document.getElementById("hair-video"),
-        canvas: document.getElementById("hair-stage"),
-        onFaceChange: (visible) => hint.classList.toggle("hidden", visible),
+function imageFromSrc(src) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("อ่านไฟล์รูปไม่ได้ ลองใช้รูป JPG หรือ PNG"));
+        img.src = src;
     });
-    hairSession = session;
-    session.setEraseEnabled(eraseEnabled);
-    session.setSizeScale(hairSizePercent / 100);
-    session.setHairColor(hairColorId);
+}
 
+/** Runs the AI on a photo and shows the selected hairstyle on it. */
+async function usePhoto(source, { mirror = false } = {}) {
+    setLoading("กำลังวิเคราะห์ใบหน้าและเส้นผมในรูป...");
     try {
+        hairSession ??= new HairPhotoSession({ canvas: document.getElementById("hair-stage") });
         const style = getHairStyle(currentHairStyle);
-        const [image] = await Promise.all([loadHairImage(style), session.start()]);
-        if (hairSession !== session) return; // stopped while loading
-        session.setStyle(style, image);
-        document.getElementById("hair-stage").classList.remove("hidden");
-        document.getElementById("hair-placeholder").classList.add("hidden");
-        document.getElementById("hair-preview-container").classList.add("hidden");
-        document.getElementById("hair-controls").classList.remove("hidden");
-        openBtn.classList.add("hidden");
-        // decode the other styles in the background so switching is instant
+        const [, image] = await Promise.all([hairSession.load(), loadHairImage(style)]);
+        hairSession.setEraseEnabled(eraseEnabled);
+        hairSession.setSizeScale(hairSizePercent / 100);
+        hairSession.setOffsetY(hairOffsetPercent / 100);
+        hairSession.setHairColor(hairColorId);
+        hairSession.setStyle(style, image);
+        hairSession.setPhoto(source, { mirror });
+        setStageState("photo");
+        syncHairSizeUI();
+        setHairOffset(hairOffsetPercent);
         preloadHairImages(filterHairStyles({ shape: shapeFilter, category: categoryFilter }));
-        showToast("เปิดกล้องสำเร็จ เลือกทรงผมและลองเปลี่ยนดูได้เลย", "success");
-    } catch (err) {
-        if (hairSession === session) stopHairSession();
-        if (err?.name !== "AbortError") {
-            console.error(err);
-            showToast(err.message || "ไม่สามารถเปิดกล้องหรือโหลดโมเดล AI ได้ กรุณาลองใหม่", "error");
+        if (window.innerWidth < DESKTOP_MIN_WIDTH) {
+            document.querySelector("#screen-hairstyle .ar-stage")?.scrollIntoView({ behavior: "smooth", block: "start" });
         }
+    } catch (err) {
+        console.error(err);
+        showToast(err.message || "ประมวลผลรูปไม่สำเร็จ กรุณาลองรูปอื่น", "error");
+        if (!hairSession?.hasPhoto) setStageState("empty");
     } finally {
-        loading.classList.add("hidden");
-        openBtn.disabled = false;
-        openBtn.classList.remove("opacity-60", "cursor-not-allowed");
+        setLoading(null);
     }
 }
 
+/** The photo analysed on the home screen (no need to upload again). */
+export async function useScanPhotoForHair() {
+    if (!appState.selectedImg) {
+        showToast("ยังไม่มีรูปที่วิเคราะห์ไว้ กรุณาอัปโหลดหรือถ่ายรูป", "info");
+        return;
+    }
+    stopHairCamera();
+    try { await usePhoto(await imageFromSrc(appState.selectedImg)); }
+    catch (err) { showToast(err.message, "error"); }
+}
+
+export function openHairPhotoPicker() {
+    document.getElementById("hair-file")?.click();
+}
+
+export async function handleHairPhotoUpload(input) {
+    const file = input.files?.[0];
+    input.value = ""; // picking the same file again should still work
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+        showToast("กรุณาเลือกไฟล์รูปภาพ", "error");
+        return;
+    }
+    stopHairCamera();
+    const url = URL.createObjectURL(file);
+    try { await usePhoto(await imageFromSrc(url)); }
+    catch (err) { showToast(err.message, "error"); }
+    finally { URL.revokeObjectURL(url); }
+}
+
+/** Camera only to take the photo; the try-on itself runs on the still frame. */
+export async function startHairCamera() {
+    if (cameraStream) return;
+    if (!navigator.mediaDevices?.getUserMedia) {
+        showToast("เบราว์เซอร์นี้เปิดกล้องไม่ได้ ใช้การอัปโหลดรูปแทน", "error");
+        return;
+    }
+    setLoading("กำลังขออนุญาตใช้กล้อง...");
+    try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false,
+        });
+        const video = document.getElementById("hair-video");
+        video.srcObject = cameraStream;
+        await video.play();
+        setStageState("camera");
+        loadHairPhotoModelsInBackground(); // warm the models while the user poses
+    } catch (err) {
+        stopHairCamera();
+        const denied = ["NotAllowedError", "PermissionDeniedError"].includes(err?.name);
+        showToast(denied ? "ไม่ได้รับสิทธิ์ใช้กล้อง ใช้การอัปโหลดรูปแทนได้" : (err.message || "เปิดกล้องไม่สำเร็จ"), "error");
+        setStageState(hairSession?.hasPhoto ? "photo" : "empty");
+    } finally {
+        setLoading(null);
+    }
+}
+
+function loadHairPhotoModelsInBackground() {
+    hairSession ??= new HairPhotoSession({ canvas: document.getElementById("hair-stage") });
+    hairSession.load().catch(() => {});
+}
+
+export async function snapHairPhoto() {
+    const video = document.getElementById("hair-video");
+    if (!cameraStream || !video || video.readyState < 2) {
+        showToast("กล้องยังไม่พร้อม กรุณารอสักครู่", "error");
+        return;
+    }
+    const frame = document.createElement("canvas");
+    frame.width = video.videoWidth; frame.height = video.videoHeight;
+    frame.getContext("2d").drawImage(video, 0, 0);
+    stopHairCamera();
+    await usePhoto(frame, { mirror: true });   // like the preview the user just saw
+}
+
+export function stopHairCamera() {
+    if (cameraStream) cameraStream.getTracks().forEach((t) => t.stop());
+    cameraStream = null;
+    const video = document.getElementById("hair-video");
+    if (video) video.srcObject = null;
+    if (document.getElementById("hair-camera-controls") && !document.getElementById("hair-camera-controls").classList.contains("hidden")) {
+        setStageState(hairSession?.hasPhoto ? "photo" : "empty");
+    }
+}
+
+/** Save the photo with the new hairstyle as a JPEG file. */
 export function captureHairPhoto() {
     const dataUrl = hairSession?.capture();
     if (!dataUrl) {
-        showToast("กล้องยังไม่พร้อมให้ถ่ายรูป กรุณารอสักครู่", "error");
+        showToast("ยังไม่มีรูปให้บันทึก", "error");
         return;
     }
-    stopHairSession();
-    document.getElementById("hair-preview").src = dataUrl;
-    document.getElementById("hair-placeholder").classList.add("hidden");
-    document.getElementById("hair-preview-container").classList.remove("hidden");
-    showToast("ถ่ายรูปทรงผมสำเร็จแล้ว!", "success");
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = `ushape-${currentHairStyle}.jpg`;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    showToast("บันทึกรูปทรงผมแล้ว", "success");
 }
 
+/** Back to choosing a photo. */
+export function resetHairPhoto() {
+    stopHairCamera();
+    hairSession?.clear();
+    setStageState("empty");
+}
+
+/** Called when leaving the screen: the camera must not stay on; the photo is kept for coming back. */
 export function stopHairSession() {
-    if (hairSession) { hairSession.stop(); hairSession = null; }
-    document.getElementById("hair-stage")?.classList.add("hidden");
-    document.getElementById("hair-controls")?.classList.add("hidden");
-    document.getElementById("hair-preview-container")?.classList.add("hidden");
-    document.getElementById("hair-face-hint")?.classList.add("hidden");
-    document.getElementById("hair-placeholder")?.classList.remove("hidden");
-    document.getElementById("hair-open-btn")?.classList.remove("hidden");
+    stopHairCamera();
 }
