@@ -326,6 +326,13 @@ img { -webkit-user-drag: none; }
 .home-frame { position: relative; overflow: hidden; aspect-ratio: 4 / 5; border-radius: var(--radius-lg); background: var(--surface-3); }
 .home-frame > #preview-placeholder img { width: 100%; height: 100%; object-fit: cover; object-position: center 22%; filter: saturate(.85); }
 .home-frame::after { content: ""; position: absolute; inset: 12px; border: 1px solid rgba(255,255,255,.55); border-radius: 8px; pointer-events: none; z-index: 4; }
+/* selfie camera: show it like a mirror (the captured photo is mirrored the same way) */
+.home-frame video.is-mirrored { transform: scaleX(-1); }
+.camera-guide { position: absolute; inset: 0; z-index: 5; pointer-events: none; display: flex; flex-direction: column; align-items: center; }
+.camera-guide svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.camera-guide ellipse, .camera-guide line { fill: none; stroke: rgba(255,255,255,.9); stroke-width: 2px; stroke-dasharray: 9 7; vector-effect: non-scaling-stroke; }
+.camera-guide > span { position: relative; margin-top: 18px; display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 999px; background: rgba(20,30,60,.72); color: #fff; font-size: 13px; font-weight: 500; }
+.camera-guide > span i { color: #F5B868; }
 .home-figure figcaption { display: flex; justify-content: space-between; gap: 12px; margin-top: 10px; font-size: 12px; color: var(--ink-4); }
 .home-figure figcaption a { text-decoration: underline; text-underline-offset: 2px; }
 .home-figure-tag { position: absolute; top: 24px; left: 24px; z-index: 5; padding: 4px 10px; border-radius: 6px; background: #fff; font-size: 12px; font-weight: 600; color: var(--ink); }
@@ -466,8 +473,10 @@ img { -webkit-user-drag: none; }
 }
 /* phones: leave room for the top bar, page title, buttons and bottom tab bar */
 @media (max-width: 767px) {
-    .tryon-screen { --tryon-chrome: 450px; }
-    .tryon-screen .ar-stage { width: min(100%, max(180px, calc((100vh - var(--tryon-chrome) - var(--tryon-extra)) * .75))); width: min(100%, max(180px, calc((100dvh - var(--tryon-chrome) - var(--tryon-extra)) * .75))); }
+    /* bigger camera / photo on phones: at least 300px wide (full width on small phones),
+       the buttons under it may need a short scroll */
+    .tryon-screen { --tryon-chrome: 260px; }
+    .tryon-screen .ar-stage { width: min(100%, max(300px, calc((100vh - var(--tryon-chrome) - var(--tryon-extra)) * .75))); width: min(100%, max(300px, calc((100dvh - var(--tryon-chrome) - var(--tryon-extra)) * .75))); }
     .tryon-size-control { gap: 8px; }
 }
 .stage-note { font-size: 12px; color: var(--ink-4); text-align: center; margin-top: 12px; }

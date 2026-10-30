@@ -18,7 +18,7 @@ uShape — E2E walkthrough: เปิดเบราว์เซอร์จร�
 สิ่งที่สคริปต์ "ไม่ทำ" (กันเปลืองโควตา / กันข้อมูลขยะในระบบจริง):
     - ไม่กด "สร้างภาพสมจริง" และบล็อก POST /hair/realistic ไว้ทุกกรณี (ไม่เสียโควตา AI)
     - ไม่ส่งคำขอจองคิว, ไม่ส่งข้อความติดต่อแอดมิน, ไม่บันทึกผล Golden Ratio, ไม่แก้โปรไฟล์
-    - การวิเคราะห์รูปหน้า 1 ครั้งต่อขนาดจอ จะถูกบันทึกในประวัติของบัญชีนั้นตามปกติ
+    - วิเคราะห์รูปหน้าแล้วกด "บันทึกผลนี้" 1 ครั้งต่อขนาดจอ -> เข้าประวัติของบัญชีนั้น และนับใน Dashboard แอดมิน
 
 ผลลัพธ์: e2e/screenshots/<วันเวลา>/<desktop|mobile>/NN_ชื่อขั้น.png + report.md
 กล้องในเบราว์เซอร์ทดสอบเป็นกล้องจำลองที่ใช้รูปจาก --photo (หน้าลองแว่น / Golden Ratio จึงเห็นหน้าคนจริง)
@@ -159,6 +159,15 @@ def walkthrough(w: Walk, cfg):
         w.shot("scan_result")
         return f"ผล: {(res[0] or '').strip()} ({(res[1] or '').strip()})"
 
+    def save_scan():
+        if not w.visible("#screen-result"):
+            raise RuntimeError("ไม่อยู่หน้าผลวิเคราะห์ (ขั้นวิเคราะห์ไม่สำเร็จ)")
+        w.js("() => document.getElementById('btn-save').scrollIntoView({block: 'center'})")
+        p.click("#btn-save")
+        w.wait_screen("screen-history", timeout=60_000)   # บันทึกสำเร็จแล้วแอปพาไปหน้าประวัติเอง
+        p.wait_for_timeout(2000)
+        w.shot("scan_saved_history")
+
     def guide():
         w.go("screen-guide")
         w.shot("guide")
@@ -249,7 +258,8 @@ def walkthrough(w: Walk, cfg):
     if not w.step("login", login):
         return
     w.step("home", home)
-    w.step("scan_and_result", scan)
+    if w.step("scan_and_result", scan):
+        w.step("save_scan", save_scan)
     w.step("guide", guide)
     w.step("golden_ratio", golden)
     w.step("glasses", glasses)

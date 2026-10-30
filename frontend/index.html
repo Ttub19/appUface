@@ -41,7 +41,7 @@
          Golden Ratio, Virtual Glasses and Virtual Hairstyle AR modules -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=20261029">
 </head>
 <body class="min-h-screen">
 
@@ -257,7 +257,11 @@
                                 <img src="assets/images/scan-portrait.jpg?v=20261022b" alt="ตัวอย่างรูปหน้าตรงที่เหมาะสำหรับวิเคราะห์">
                             </div>
 
-                            <video id="camera-video" class="hidden absolute inset-0 w-full h-full object-cover" autoplay playsinline></video>
+                            <video id="camera-video" class="hidden absolute inset-0 w-full h-full object-cover is-mirrored" autoplay playsinline muted></video>
+                            <div id="camera-guide" class="hidden camera-guide" aria-hidden="true">
+                                <svg viewBox="0 0 100 125" preserveAspectRatio="xMidYMid meet"><ellipse cx="50" cy="56" rx="27" ry="36"/><line x1="50" y1="14" x2="50" y2="22"/></svg>
+                                <span><i class="fa-solid fa-face-smile"></i>ให้หน้าอยู่ในวงรี มองตรง ไม่เอียงศีรษะ</span>
+                            </div>
                             <canvas id="camera-canvas" class="hidden"></canvas>
 
                             <div id="camera-controls" class="hidden stage-toolbar is-floating">

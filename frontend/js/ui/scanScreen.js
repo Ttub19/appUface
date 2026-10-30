@@ -22,12 +22,14 @@ function revealPreviewFrame() {
 const MAX_UPLOAD_SIDE = 1280;
 
 /** Draws an image source onto a canvas no larger than MAX_UPLOAD_SIDE and returns a JPEG data URL. */
-function toUploadDataUrl(source, width, height) {
+function toUploadDataUrl(source, width, height, { mirror = false } = {}) {
     const scale = Math.min(1, MAX_UPLOAD_SIDE / Math.max(width, height));
     const canvas = document.createElement("canvas");
     canvas.width = Math.max(1, Math.round(width * scale));
     canvas.height = Math.max(1, Math.round(height * scale));
-    canvas.getContext("2d").drawImage(source, 0, 0, canvas.width, canvas.height);
+    const ctx = canvas.getContext("2d");
+    if (mirror) { ctx.translate(canvas.width, 0); ctx.scale(-1, 1); }   // same as the mirrored preview
+    ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
     return canvas.toDataURL("image/jpeg", .9);
 }
 
@@ -71,12 +73,16 @@ export async function startCamera() {
         return;
     }
     try {
-        appState.cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+        // ask for a sharper picture than the default 640x480 (phones pick the closest they support)
+        appState.cameraStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 1280 } },
+        });
         document.getElementById("preview-placeholder").classList.add("hidden");
         document.getElementById("preview-container").classList.add("hidden");
         const video = document.getElementById("camera-video");
         video.srcObject = appState.cameraStream;
         video.classList.remove("hidden");
+        document.getElementById("camera-guide").classList.remove("hidden");
         document.getElementById("camera-controls").classList.remove("hidden");
         revealPreviewFrame();
     } catch (err) {
@@ -86,7 +92,7 @@ export async function startCamera() {
 
 export function capturePhoto() {
     const video = document.getElementById("camera-video");
-    appState.selectedImg = toUploadDataUrl(video, video.videoWidth || 480, video.videoHeight || 480);
+    appState.selectedImg = toUploadDataUrl(video, video.videoWidth || 480, video.videoHeight || 480, { mirror: true });
 
     stopCamera();
     document.getElementById("preview-container").classList.remove("hidden");
@@ -100,6 +106,7 @@ export function stopCamera() {
         appState.cameraStream = null;
     }
     document.getElementById("camera-video").classList.add("hidden");
+    document.getElementById("camera-guide")?.classList.add("hidden");
     document.getElementById("camera-controls").classList.add("hidden");
     if (!appState.selectedImg) document.getElementById("preview-placeholder").classList.remove("hidden");
 }
