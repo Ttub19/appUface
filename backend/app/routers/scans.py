@@ -47,6 +47,7 @@ async def predict(
         face_shape_name=result.face_shape_name,
         confidence=result.confidence,
         model=result.model,
+        ranking=list(result.ranking),
     )
 
 

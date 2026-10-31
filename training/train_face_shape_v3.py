@@ -84,6 +84,13 @@ GENDER_MIN_CONF = 0.80                  # ต่ำกว่านี้ = "unkn
 # CSV แก้ป้ายเพศเอง (คอลัมน์: filename,gender) — ชื่อไฟล์เทียบแค่ basename, แนบเป็น dataset หรือวางใน /kaggle/working
 GENDER_OVERRIDES_CSV = None
 
+# --- รูปผู้ชายเสริม (male_extra) ----------------------------------------------------
+# แนบ dataset ที่มีโฟลเดอร์ชื่อนี้ (ข้างในแยกโฟลเดอร์ตามคลาส heart/oblong/oval/round/square
+# โฟลเดอร์อื่น เช่น diamond / triangle จะถูกข้าม) -> ใช้กับโมเดลผู้ชายเท่านั้น ไม่ผ่านโมเดลแยกเพศ
+# (คัดแล้วว่าเป็นผู้ชายทุกรูป) ไม่มีโฟลเดอร์นี้ = ข้ามไปเฉย ๆ เทรนแบบเดิม
+EXTRA_MALE_DIRNAME = "male_extra"
+EXTRA_TEST_FRACTION = 0.15              # แบ่งรูปเสริมส่วนนี้ไปเป็นชุดทดสอบด้วย (แบ่งทั้งกลุ่มภาพซ้ำ)
+
 # --- ชุดทดสอบ -------------------------------------------------------------------
 # testing_set ใช้เป็นชุดทดสอบได้เมื่อเป็นแหล่งเดียวกับที่เลือก และมีรูปเพศนั้น >= MIN_TEST_PER_CLASS ทุกคลาส
 # ไม่อย่างนั้นแบ่ง TEST_HOLDOUT ของแหล่งที่เลือกออกมาเป็นชุดทดสอบ (แบ่งทั้งกลุ่มภาพซ้ำ กันรั่ว)
@@ -102,7 +109,14 @@ LR_HEAD = 1e-3
 LR_FINETUNE = 1e-5
 WEIGHT_DECAY_FINETUNE = 1e-4
 LABEL_SMOOTHING = 0.1
-QUICK_TEST = False                      # True = ลองรันให้จบเร็ว ๆ (epoch น้อย) เช็กว่าโค้ดไม่พังก่อนรันจริง
+CLASS_WEIGHT_MAX = 5.0                  # กันคลาสที่รูปน้อยมาก (เช่น heart ของผู้ชาย ~24 รูป) ได้น้ำหนักสูงเกินจนเทรนเพี้ยน
+
+# --- ความเร็ว (Kaggle T4 x2) ---------------------------------------------------------
+USE_MULTI_GPU = True                    # ใช้ GPU ทั้ง 2 ตัว (MirroredStrategy)
+USE_MIXED_PRECISION = False             # float16 เร็วกว่า แต่รอบทดสอบเจอ val_loss เป็น nan กับ ResNet50 จึงปิดไว้ (เปิดได้ถ้าอยากลอง)
+CACHE_IMAGES_IN_RAM = True              # เก็บรูปที่ถอดรหัสแล้วใน RAM (uint8) epoch ถัดไปไม่ต้องอ่านไฟล์ใหม่
+QUICK_TEST = False                      # True = ลองรันให้จบเร็ว ๆ: สุ่มรูปมาแค่บางส่วน + epoch น้อย เช็กว่าโค้ดไม่พังก่อนรันจริง
+QUICK_TEST_PER_GROUP = 60               # QUICK_TEST: สุ่มกี่รูปต่อ (โฟลเดอร์, แหล่ง, คลาส)
 
 # --- Face crop ------------------------------------------------------------------
 FACE_CROP_DIR = "/kaggle/working/face_crops"
@@ -763,6 +777,47 @@ for folder in TRAIN_DIRS:
     print(f"  {os.path.basename(folder)}: {sum(counts.values())} รูป")
 test_pairs_all, _ = list_image_label_pairs(TEST_DIR)
 
+
+def find_named_dir(name, base="/kaggle/input", max_depth=6):
+    if not name or not os.path.isdir(base):
+        return None
+    for root, dirs, _ in os.walk(base):
+        if root[len(base):].count(os.sep) > max_depth:
+            dirs[:] = []
+            continue
+        for d in dirs:
+            if d.strip().lower() == name.lower():
+                return os.path.join(root, d)
+    return None
+
+
+def list_extra_pairs(directory):
+    """เหมือน list_image_label_pairs แต่ข้ามโฟลเดอร์คลาสที่ไม่ได้ใช้ (diamond, triangle, pear ...)"""
+    pairs, skipped = [], Counter()
+    for raw in sorted(os.listdir(directory)):
+        folder = os.path.join(directory, raw)
+        if not os.path.isdir(folder):
+            continue
+        files = [f for f in os.listdir(folder) if f.lower().endswith(VALID_EXTENSIONS)]
+        if raw.strip().lower() not in ALIAS_MAP:
+            skipped[raw] += len(files)
+            continue
+        idx = CLASS_TO_IDX[normalize_class_name(raw)]
+        pairs += [(os.path.join(folder, f), idx) for f in sorted(files)]
+    return pairs, skipped
+
+
+EXTRA_MALE_DIR = find_named_dir(EXTRA_MALE_DIRNAME) if "male" in GENDERS else None
+extra_male_pairs = []
+if EXTRA_MALE_DIR:
+    extra_male_pairs, _skipped = list_extra_pairs(EXTRA_MALE_DIR)
+    print(f"\nรูปผู้ชายเสริม: {EXTRA_MALE_DIR} -> {len(extra_male_pairs)} รูป "
+          + str({n: sum(1 for _, l in extra_male_pairs if l == i) for i, n in enumerate(CANONICAL_CLASSES)})
+          + (f" | ข้ามโฟลเดอร์ {dict(_skipped)}" if _skipped else ""))
+else:
+    print(f"\nไม่พบโฟลเดอร์ '{EXTRA_MALE_DIRNAME}' — เทรนโมเดลผู้ชายจากแหล่งหลักอย่างเดียว")
+EXTRA_SET = {p for p, _ in extra_male_pairs}
+
 print("\n--- แหล่งที่มาของรูป (นับจากชื่อไฟล์) ---")
 audit = Counter()
 for p, l in train_pool + test_pairs_all:
@@ -786,6 +841,39 @@ with open(os.path.join(OUTPUT_DIR, "source_audit.csv"), "w", newline="", encodin
             if sum(row):
                 w.writerow([fo, so] + row + [sum(row)])
 
+# --- ตัดไฟล์ที่ซ้ำกันเป๊ะข้ามโฟลเดอร์ (คลาสเดียวกัน ชื่อไฟล์เดียวกัน ขนาดเท่ากัน) ---
+# เช่น ส่วน Roboflow ของ train1 กับ train5 มีจำนวนรูปเท่ากันทุกคลาส = ชุดเดียวกันที่ถูกใส่ซ้ำ
+import hashlib
+_seen, _dedup, _dropped = {}, [], Counter()
+_md5 = lambda path: hashlib.md5(open(path, "rb").read()).hexdigest()
+for p, l in train_pool:
+    key = (l, os.path.basename(p), os.path.getsize(p))
+    if key in _seen and _md5(_seen[key]) == _md5(p):     # same bytes = a real copy, not just a name clash
+        _dropped[(folder_of(p), source_of(p))] += 1
+        continue
+    _seen.setdefault(key, p)
+    _dedup.append((p, l))
+train_pool = _dedup
+if _dropped:
+    print("\nตัดไฟล์ซ้ำ (สำเนาเดียวกันในอีกโฟลเดอร์):", dict(_dropped))
+for so in ("kaggle", "roboflow"):
+    print(f"รวม train จาก {so:9s} หลังตัดไฟล์ซ้ำ: {sum(source_of(p) == so for p, _ in train_pool)} รูป")
+
+if QUICK_TEST:   # สุ่มแค่บางส่วน ให้รอบทดสอบจบเร็ว (รอบจริงใช้ cache ครอป/ป้ายเพศของรูปชุดนี้ต่อได้)
+    _rng = np.random.default_rng(SEED)
+    def _sample(pairs, n):
+        groups = defaultdict(list)
+        for p, l in pairs:
+            groups[(folder_of(p), source_of(p), l)].append((p, l))
+        out = []
+        for key in sorted(groups):
+            g = groups[key]
+            out += [g[i] for i in sorted(_rng.permutation(len(g))[:n])]
+        return out
+    train_pool = _sample(train_pool, QUICK_TEST_PER_GROUP)
+    test_pairs_all = _sample(test_pairs_all, QUICK_TEST_PER_GROUP)
+    print(f"QUICK_TEST: ใช้ train {len(train_pool)} รูป, test {len(test_pairs_all)} รูป")
+
 # =============================================================================
 # ### 2) Face crop ทุกภาพ (cache ไว้ รันซ้ำไม่ครอปใหม่)
 # =============================================================================
@@ -799,7 +887,8 @@ import face_crop
 face_crop = importlib.reload(face_crop)
 
 print("\n--- Face crop ---")
-crop_manifest = face_crop.ensure_face_crops([p for p, _ in train_pool + test_pairs_all], DATA_ROOT, FACE_CROP_DIR)
+crop_manifest = face_crop.ensure_face_crops([p for p, _ in train_pool + test_pairs_all + extra_male_pairs],
+                                            DATA_ROOT, FACE_CROP_DIR)
 
 
 def face_found(p):
@@ -968,6 +1057,32 @@ def write_split(rows, path):
         w.writerows(rows)
 
 
+def add_extra_male(pool, test, how):
+    """เติมรูปผู้ชายเสริม: ตัดรูปที่หาหน้าไม่เจอ / ซ้ำกับรูปที่มีอยู่แล้ว แล้วแบ่งส่วนหนึ่งไปชุดทดสอบ"""
+    usable = [(p, l) for p, l in extra_male_pairs if face_found(p)]
+    no_face = len(extra_male_pairs) - len(usable)
+    # กันรั่ว: รูปเสริมที่ phash ใกล้กับรูปใน train/test เดิม (เช่นดาราคนเดียวกันรูปเดียวกัน) ทิ้งไป
+    def _ph(p):
+        try:
+            return imagehash.phash(Image.open(crop_manifest[p]["crop"]).convert("RGB"))
+        except Exception:
+            return None
+    known = [h for h in (_ph(p) for p, _ in pool + test) if h is not None]
+    kept, dup = [], 0
+    for p, l in usable:
+        h = _ph(p)
+        if h is not None and any(h - k <= HASH_THRESHOLD for k in known):
+            dup += 1
+            continue
+        kept.append((p, l))
+    extra_test = []
+    if EXTRA_TEST_FRACTION > 0 and len(kept) >= 10:
+        kept, extra_test = split_holdout(kept, EXTRA_TEST_FRACTION, SEED)
+    print(f"male_extra: ใช้ได้ {len(kept) + len(extra_test)} รูป (หาหน้าไม่เจอ {no_face}, ซ้ำกับรูปเดิม {dup})"
+          f" -> train+val {counts_of(kept)} | test {counts_of(extra_test)}")
+    return pool + kept, test + extra_test, how + f" + male_extra {len(extra_test)} รูป"
+
+
 plan = {}
 for g in GENDERS:
     pool = [(p, l) for p, l in train_pool if source_of(p) == CHOSEN_SOURCE and gender_of(p) == g]
@@ -977,10 +1092,14 @@ for g in GENDERS:
     else:
         pool, test = split_holdout(pool, TEST_HOLDOUT, SEED)
         how = f"แบ่ง {TEST_HOLDOUT:.0%} จากแหล่งที่เลือก"
+    n_test_main = len(test)
+    if g == "male" and extra_male_pairs:
+        pool, test, how = add_extra_male(pool, test, how)
     if min(counts_of(pool).values()) < K_FOLDS * 2:
         print(f"[ข้าม] {g}: บางคลาสมีรูปน้อยเกินไปสำหรับ {K_FOLDS}-fold -> {counts_of(pool)}")
         continue
-    plan[g] = {"pool": pool, "test": test, "test_from": how}
+    plan[g] = {"pool": pool, "test": test, "test_from": how, "n_test_main": n_test_main,
+               "n_extra": sum(p in EXTRA_SET for p, _ in pool + test)}
     print(f"\n{g}: train+val {len(pool)} รูป {counts_of(pool)}")
     print(f"{g}: test ({how}) {len(test)} รูป {counts_of(test)}")
 
@@ -996,37 +1115,48 @@ else:
     from tensorflow.keras.applications.efficientnet import preprocess_input
     PREPROCESS_NAME = "none"          # EfficientNet มี rescale อยู่ในโมเดลแล้ว
 
+# --- GPU ทั้งสองตัว + mixed precision ---
+_gpus = tf.config.list_physical_devices("GPU")
+STRATEGY = tf.distribute.MirroredStrategy() if (USE_MULTI_GPU and len(_gpus) > 1) else tf.distribute.get_strategy()
+# ตั้งทุกครั้ง (ไม่ใช่แค่ตอนเปิด) — ถ้ารันซ้ำใน kernel เดิม ค่าจากรอบก่อนจะไม่ค้าง
+tf.keras.mixed_precision.set_global_policy("mixed_float16" if (USE_MIXED_PRECISION and _gpus) else "float32")
+GLOBAL_BATCH = BATCH_SIZE * STRATEGY.num_replicas_in_sync
+print(f"GPU ที่ใช้: {STRATEGY.num_replicas_in_sync} ตัว, batch รวม {GLOBAL_BATCH}, "
+      f"precision={tf.keras.mixed_precision.global_policy().name}")
+
+# augmentation คำนวณเป็น float32 เสมอ (ไม่ขึ้นกับ mixed precision)
 geometric_aug = models.Sequential([
-    layers.RandomFlip("horizontal"),
-    layers.RandomRotation(0.03),            # ±11° — หน้าถูกหมุนตรงแล้ว หมุนแรงจะทำลายการจัดหน้า
-    layers.RandomZoom(0.10),
-    layers.RandomTranslation(0.05, 0.05),
+    layers.RandomFlip("horizontal", dtype="float32"),
+    layers.RandomRotation(0.03, dtype="float32"),            # ±11° — หน้าถูกหมุนตรงแล้ว หมุนแรงจะทำลายการจัดหน้า
+    layers.RandomZoom(0.10, dtype="float32"),
+    layers.RandomTranslation(0.05, 0.05, dtype="float32"),
 ], name="geometric_aug")
 light_aug = models.Sequential([
-    layers.RandomContrast(0.20),
-    layers.RandomBrightness(0.15, value_range=(0, 255)),
+    layers.RandomContrast(0.20, dtype="float32"),
+    layers.RandomBrightness(0.15, value_range=(0, 255), dtype="float32"),
 ], name="light_aug")
 
 
 def color_aug(img):
-    """สุ่มเปลี่ยนสีต่อรูป: hue, saturation, ขาวดำ 10%, คุณภาพ JPEG (จำลองกล้องมือถือ)"""
+    """สุ่มเปลี่ยนสีต่อรูป: hue, saturation, ขาวดำ 10%"""
     x = img / 255.0
     x = tf.image.random_hue(x, 0.04)
     x = tf.image.random_saturation(x, 0.6, 1.4)
     gray = tf.image.grayscale_to_rgb(tf.image.rgb_to_grayscale(x))
     x = tf.where(tf.random.uniform([]) < 0.10, gray, x)
-    x = tf.image.random_jpeg_quality(tf.clip_by_value(x, 0.0, 1.0), 60, 100)
     return tf.clip_by_value(x, 0.0, 1.0) * 255.0
 
 
 def load_image(path, label):
+    """-> uint8 (เก็บใน RAM ได้ 1/4 ของ float32)"""
     img = tf.io.decode_image(tf.io.read_file(path), channels=3, expand_animations=False)
     img.set_shape([None, None, 3])
     img = tf.image.resize_with_pad(tf.cast(img, tf.float32), IMG_SIZE[0], IMG_SIZE[1])
-    return img, label
+    return tf.cast(tf.clip_by_value(tf.round(img), 0, 255), tf.uint8), label
 
 
 def augment(img, label):
+    img = tf.cast(img, tf.float32)
     img = geometric_aug(img, training=True)
     img = light_aug(img, training=True)
     img = color_aug(img)
@@ -1035,14 +1165,16 @@ def augment(img, label):
 
 
 def make_ds(paths, labels, training):
-    ds = tf.data.Dataset.from_tensor_slices((paths, labels))
+    ds = tf.data.Dataset.from_tensor_slices((paths, labels)).map(load_image, num_parallel_calls=AUTOTUNE)
+    if CACHE_IMAGES_IN_RAM:
+        ds = ds.cache()
     if training:
-        ds = ds.shuffle(len(paths), seed=SEED, reshuffle_each_iteration=True)
-    ds = ds.map(load_image, num_parallel_calls=AUTOTUNE)
-    if training:
+        ds = ds.shuffle(min(len(paths), 10000), seed=SEED, reshuffle_each_iteration=True)
         ds = ds.map(augment, num_parallel_calls=AUTOTUNE)
-    ds = ds.batch(BATCH_SIZE).map(lambda x, y: (preprocess_input(x), y), num_parallel_calls=AUTOTUNE)
-    return ds.prefetch(AUTOTUNE) if training else ds.cache().prefetch(AUTOTUNE)
+    else:
+        ds = ds.map(lambda x, y: (tf.cast(x, tf.float32), y), num_parallel_calls=AUTOTUNE)
+    ds = ds.batch(GLOBAL_BATCH).map(lambda x, y: (preprocess_input(x), y), num_parallel_calls=AUTOTUNE)
+    return ds.prefetch(AUTOTUNE)
 
 
 # ตัวอย่างรูปหลัง augment (ดูว่าแรงไปไหม)
@@ -1051,7 +1183,7 @@ def save_aug_preview(paths, out_path, n=8):
     for p in paths[:n]:
         img, _ = load_image(p, 0)
         ims.append(tf.cast(augment(img, 0)[0], tf.uint8).numpy())
-        ims.append(tf.cast(img, tf.uint8).numpy())
+        ims.append(img.numpy())
     h, w = IMG_SIZE
     sheet = Image.new("RGB", (w * n, h * 2))
     for i in range(n):
@@ -1070,8 +1202,8 @@ def loss_fn(y_true, y_pred):
     return tf.keras.losses.categorical_crossentropy(y, y_pred, label_smoothing=LABEL_SMOOTHING)
 
 
-def build_model():
-    base = Backbone(input_shape=IMG_SIZE + (3,), include_top=False, weights="imagenet")
+def build_model(weights="imagenet"):
+    base = Backbone(input_shape=IMG_SIZE + (3,), include_top=False, weights=weights)
     base.trainable = False
     inputs = layers.Input(shape=IMG_SIZE + (3,))
     x = base(inputs, training=False)           # BatchNorm ใช้ค่าสถิติเดิมตลอด (สำคัญตอน fine-tune)
@@ -1079,27 +1211,44 @@ def build_model():
     x = layers.Dropout(0.4)(x)
     x = layers.Dense(128, activation="relu", kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
     x = layers.Dropout(0.3)(x)
-    outputs = layers.Dense(num_classes, activation="softmax")(x)
+    outputs = layers.Dense(num_classes, activation="softmax", dtype="float32")(x)   # softmax เป็น float32 เสมอ
     return models.Model(inputs, outputs), base
+
+
+def export_float32(src, dst):
+    """โมเดลที่ใช้จริงบนเซิร์ฟเวอร์ (CPU) ต้องเป็น float32 — สร้างใหม่แบบ float32 แล้วคัดลอกน้ำหนักมา"""
+    trained = tf.keras.models.load_model(src, compile=False)
+    previous = tf.keras.mixed_precision.global_policy()
+    tf.keras.mixed_precision.set_global_policy("float32")
+    try:
+        clean, _ = build_model(weights=None)
+        clean.set_weights(trained.get_weights())
+        clean.save(dst)
+    finally:
+        tf.keras.mixed_precision.set_global_policy(previous)
 
 
 def train_fold(train_p, train_l, val_p, val_l, ckpt):
     counts = Counter(train_l)
-    class_weight = {i: len(train_l) / (num_classes * counts[i]) if counts[i] else 0.0 for i in range(num_classes)}
+    class_weight = {i: min(CLASS_WEIGHT_MAX, len(train_l) / (num_classes * counts[i])) if counts[i] else 0.0
+                    for i in range(num_classes)}
+    print("class weight:", {CANONICAL_CLASSES[i]: round(w, 2) for i, w in class_weight.items()})
     tr, va = make_ds(train_p, train_l, True), make_ds(val_p, val_l, False)
-    model, base = build_model()
+    with STRATEGY.scope():
+        model, base = build_model()
+        # เฟส 1: ล็อก backbone เทรนเฉพาะ head
+        model.compile(optimizer=optimizers.Adam(LR_HEAD), loss=loss_fn, metrics=["accuracy"])
     cbs = [callbacks.EarlyStopping(monitor="val_accuracy", patience=7, restore_best_weights=True),
            callbacks.ModelCheckpoint(ckpt, monitor="val_accuracy", save_best_only=True),
            callbacks.ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=2, min_lr=1e-7)]
-    # เฟส 1: ล็อก backbone เทรนเฉพาะ head
-    model.compile(optimizer=optimizers.Adam(LR_HEAD), loss=loss_fn, metrics=["accuracy"])
     h1 = model.fit(tr, validation_data=va, epochs=EPOCHS_HEAD, class_weight=class_weight, callbacks=cbs, verbose=2)
     # เฟส 2: ปลด 35% บนของ backbone, LR ต่ำมาก
-    base.trainable = True
-    for layer in base.layers[:int(len(base.layers) * FINE_TUNE_FREEZE_FRACTION)]:
-        layer.trainable = False
-    model.compile(optimizer=optimizers.AdamW(learning_rate=LR_FINETUNE, weight_decay=WEIGHT_DECAY_FINETUNE),
-                  loss=loss_fn, metrics=["accuracy"])
+    with STRATEGY.scope():
+        base.trainable = True
+        for layer in base.layers[:int(len(base.layers) * FINE_TUNE_FREEZE_FRACTION)]:
+            layer.trainable = False
+        model.compile(optimizer=optimizers.AdamW(learning_rate=LR_FINETUNE, weight_decay=WEIGHT_DECAY_FINETUNE),
+                      loss=loss_fn, metrics=["accuracy"])
     h2 = model.fit(tr, validation_data=va, epochs=EPOCHS_FINETUNE, class_weight=class_weight, callbacks=cbs, verbose=2)
     hist = {k: h1.history.get(k, []) + h2.history.get(k, []) for k in ("accuracy", "val_accuracy", "loss", "val_loss")}
     return model, hist, len(h1.history["accuracy"])
@@ -1139,8 +1288,11 @@ for g, info in plan.items():
         model.save(ckpt)        # restore_best_weights แล้ว = น้ำหนักที่ดีที่สุดของ fold นี้
         val_acc, _ = evaluate(model, va_p, va_l)
         test_acc, test_pred = evaluate(model, test_p, test_l)
-        print(f"{g} fold {k}: val={val_acc:.4f}  test={test_acc:.4f}")
-        folds.append({"fold": k, "val_acc": val_acc, "test_acc": test_acc, "model": ckpt,
+        main_mask = np.array([p not in EXTRA_SET for p, _ in test])
+        test_main_acc = float(np.mean(test_pred[main_mask] == np.array(test_l)[main_mask])) if main_mask.any() else None
+        print(f"{g} fold {k}: val={val_acc:.4f}  test={test_acc:.4f}"
+              + (f"  (เฉพาะชุดทดสอบเดิม {test_main_acc:.4f})" if not main_mask.all() else ""))
+        folds.append({"fold": k, "val_acc": val_acc, "test_acc": test_acc, "test_main_acc": test_main_acc, "model": ckpt,
                       "confusion": confusion_matrix(test_l, test_pred, labels=range(num_classes)).tolist(),
                       "report": classification_report(test_l, test_pred, labels=range(num_classes),
                                                       target_names=CANONICAL_CLASSES, output_dict=True, zero_division=0)})
@@ -1150,11 +1302,13 @@ for g, info in plan.items():
     va = np.array([f["val_acc"] for f in folds]); te = np.array([f["test_acc"] for f in folds])
     best = max(folds, key=lambda f: f["val_acc"])          # เลือกด้วย val เท่านั้น (ไม่แอบดู test)
     final_path = os.path.join(OUTPUT_DIR, f"face_shape_{g}.keras")
-    tf.keras.models.load_model(best["model"], compile=False).save(final_path)
+    export_float32(best["model"], final_path)
     results[g] = {"folds": folds, "val_mean": float(va.mean()), "val_std": float(va.std(ddof=1)) if len(va) > 1 else 0.0,
                   "test_mean": float(te.mean()), "test_std": float(te.std(ddof=1)) if len(te) > 1 else 0.0,
                   "best_fold": best["fold"], "best_test_acc": best["test_acc"], "final_model": final_path,
-                  "test_from": info["test_from"], "n_trainval": len(pool), "n_test": len(test)}
+                  "test_from": info["test_from"], "n_trainval": len(pool), "n_test": len(test),
+                  "n_test_main": info["n_test_main"], "n_extra": info["n_extra"],
+                  "best_test_main_acc": best["test_main_acc"]}
     print(f"\n### {g}: val {va.mean():.2%} ± {results[g]['val_std']:.2%} | test {te.mean():.2%} ± {results[g]['test_std']:.2%}"
           f" | ใช้ fold {best['fold']} (test {best['test_acc']:.2%}) -> {final_path}")
     print("Confusion matrix (fold ที่เลือก, แถว=จริง คอลัมน์=ทาย):", CANONICAL_CLASSES)

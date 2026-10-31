@@ -134,6 +134,7 @@ export async function runAI() {
         document.getElementById("res-shape").innerText = prediction.face_shape_name;
         document.getElementById("res-confidence").innerText = prediction.confidence.toFixed(1) + "%";
         document.querySelector(".result-photo")?.style.setProperty("--pct", `${Math.max(0, Math.min(100, prediction.confidence))}%`);
+        renderRunnerUp(prediction.ranking);
         document.getElementById("tip-hair").innerText = styleInfo.hair[gender];
         renderResultHairRecs(styleInfo.id, gender);
         document.getElementById("tip-glass").innerText = styleInfo.glass;
@@ -152,6 +153,28 @@ export async function runAI() {
     } finally {
         spinner.classList.add("hidden");
     }
+}
+
+/**
+ * Face shapes overlap (an oval face can lean heart-shaped), so the result also names the
+ * runner-up the model gave real weight to. ranking = every shape, most likely first.
+ */
+export const RUNNER_UP_MIN_CONFIDENCE = 10;
+
+export function pickRunnerUp(ranking) {
+    const second = Array.isArray(ranking) ? ranking[1] : null;
+    return second && Number(second.confidence) >= RUNNER_UP_MIN_CONFIDENCE ? second : null;
+}
+
+function renderRunnerUp(ranking) {
+    const el = document.getElementById("res-second");
+    if (!el) return;
+    const second = pickRunnerUp(ranking);
+    appState.lastRunnerUp = second;
+    el.classList.toggle("hidden", !second);
+    if (!second) return;
+    document.getElementById("res-second-name").innerText = second.face_shape_name;
+    document.getElementById("res-second-confidence").innerText = `${Number(second.confidence).toFixed(1)}%`;
 }
 
 export function shareResult() {

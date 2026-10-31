@@ -29,7 +29,8 @@ face-shape-backend/
 │   │   ├── profile.py                        # GET/PUT /profile
 │   │   └── admin.py                           # GET /admin/stats (admin เท่านั้น)
 │   └── services/
-│       ├── face_shape_predictor.py            # โมเดลจริง EfficientNetB1 (test 80.4%) + mock สำหรับ dev (FACE_SHAPE_PREDICTOR=mock)
+│       ├── face_shape_predictor.py            # ResNet50 แยกเพศ ensemble 3 fold + TTA บน LiteRT + mock สำหรับ dev
+│       ├── image_ops.py                       # resize/preprocess แบบ NumPy (ตรงกับ TensorFlow ตอนเทรน)
 │       └── face_crop.py                       # ครอปหน้าด้วย MediaPipe แบบเดียวกับตอนเทรน
 ├── sql/schema.sql                       # DDL อ้างอิง (แอปสร้างตารางเองตอน startup ผ่าน SQLAlchemy)
 ├── requirements.txt
@@ -123,13 +124,28 @@ Auth ใช้ `Authorization: Bearer <token>` header หลัง login (มา
 
 ## โมเดลวิเคราะห์รูปหน้า (`models/`)
 
-- `face_shape_effnetb1.keras.part00..02` + `.sha256` — โมเดล EfficientNetB1 (Keras 3.13) แบ่งเป็นไฟล์ย่อยไม่เกิน 25 MB
-  ตอนรันครั้งแรก backend จะรวมเป็น `face_shape_effnetb1.keras` ให้เองและเช็ก SHA-256 (ไฟล์ที่รวมแล้วอยู่ใน `.gitignore`)
-- `class_names.json` — ลำดับคลาสและค่าการครอปหน้าที่ใช้ตอนเทรน (ต้องตรงกับ `app/services/face_crop.py`)
+- `face_shape_<female|male>_fold1..3.tflite.part*` + `.sha256` — ResNet50 แยกเพศ ครบ 3 fold (training v3) แปลงเป็น TFLite
+  (น้ำหนัก int8) ด้วย `training/convert_tflite.py` ตอนรันครั้งแรก backend จะรวม part เป็นไฟล์และเช็ก SHA-256 ให้เอง
+- ทายแบบ **ensemble 3 fold + TTA (กลับซ้าย-ขวา)**: แต่ละรูปผ่านโมเดล 3 ตัว x 2 ภาพ แล้วเฉลี่ยความน่าจะเป็น
+  (ชุดทดสอบเดิม: หญิง top-1 80.8% / top-2 91.2%, ชาย top-1 85.9% / top-2 97.0%) — API ส่ง `ranking` ทุกทรงเรียงจากมากไปน้อย
+  หน้าเว็บแสดงทรงที่ใกล้เคียงรองลงมาด้วย
+- รันบน **LiteRT** (`ai-edge-litert`) ไม่ต้องติดตั้ง TensorFlow — RAM น้อยพอสำหรับ Render ฟรี (512 MB)
+- `class_names.json` — ลำดับคลาส ไฟล์โมเดลของแต่ละเพศ (`models`), `"tta": "flip"` และค่าการครอปหน้าที่ใช้ตอนเทรน (ต้องตรงกับ `app/services/face_crop.py`)
+- `app/services/image_ops.py` — resize/preprocess แบบ NumPy ที่ให้ค่าเท่ากับ TensorFlow ตอนเทรน (convert_tflite.py ตรวจให้)
 - `face_landmarker.task` — โมเดลหาใบหน้าของ MediaPipe (~3.6 MB) ดาวน์โหลดอัตโนมัติครั้งแรก ต้องต่ออินเทอร์เน็ต
-- โหลดโมเดลเบื้องหลังตอนเปิดเซิร์ฟเวอร์ (ใช้เวลาหลายวินาที) — log `Face-shape model ready` = พร้อมใช้
-- ไม่มี TensorFlow ในเครื่อง dev? ตั้ง `FACE_SHAPE_PREDICTOR=mock` เพื่อใช้ผลสุ่มแบบเดิมชั่วคราว
-- เปลี่ยนโมเดลใหม่: วางไฟล์ `.keras` ทับ `face_shape_effnetb1.keras` แล้วลบ `.sha256` (หรือแบ่ง part ใหม่พร้อม checksum) และอัปเดต `class_names.json`
+- โหลดโมเดลเบื้องหลังตอนเปิดเซิร์ฟเวอร์ — log `Face-shape model ready` = พร้อมใช้
+- ปรับตามเครื่อง (Render → Environment):
+
+| ตัวแปร | ค่าเริ่มต้น | ความหมาย |
+|---|---|---|
+| `FACE_SHAPE_MAX_MODELS` | `2` | เก็บโมเดลกี่เพศไว้ใน RAM พร้อมกัน (1 เพศ = ทั้ง 3 fold) — RAM ไม่พอให้ตั้ง `1` |
+| `FACE_SHAPE_ENSEMBLE` | ทั้งหมด | ใช้แค่ N fold แรก — ถ้าเซิร์ฟเวอร์ช้าเกินไปตั้ง `1` |
+| `FACE_SHAPE_TTA` | ตาม `class_names.json` | `0` = ปิดการทายภาพกลับซ้าย-ขวา (เร็วขึ้นเท่าตัว) |
+| `FACE_SHAPE_THREADS` | `1` | จำนวน thread ต่อโมเดล |
+
+- ไม่มีโมเดลในเครื่อง dev? ตั้ง `FACE_SHAPE_PREDICTOR=mock` เพื่อใช้ผลสุ่มชั่วคราว
+- เปลี่ยนโมเดลใหม่: รัน `python scripts/split_model.py <ไฟล์ .tflite ...>` แล้ววาง `class_names.json` ใหม่จาก Kaggle
+- โมเดลเดิม (`face_shape_effnetb1.keras`, `.keras` แบบ fold เดียว) ยังใช้ได้ถ้าติดตั้ง TensorFlow เอง แต่เซิร์ฟเวอร์ไม่ติดตั้งแล้ว
 
 ## สร้างภาพทรงผมสมจริงด้วย AI (`/hair/realistic`)
 

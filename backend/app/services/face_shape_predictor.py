@@ -10,17 +10,27 @@ preprocessing they were trained with:
   2. MediaPipe face landmarks -> upright square face crop (face_crop.py, the
      same module the Kaggle training script used);
   3. JPEG round-trip (training read the crops back from JPEG files);
-  4. tf.image.resize_with_pad to the model's input size, float 0-255, then the
+  4. resize_with_pad to the model's input size + round to 0-255, then the
      backbone's own preprocessing ("none" for EfficientNet, "resnet50" =
-     RGB->BGR + ImageNet mean subtraction);
+     RGB->BGR + ImageNet mean subtraction) - image_ops.py, plain NumPy;
   5. softmax over [heart, oblong, oval, round, square].
 
-Models per gender (training v3): class_names.json lists
-{"models": {"female": "face_shape_female.keras", "male": "face_shape_male.keras"}}
-and the request's gender picks one. A gender without its own model - or an
-old class_names.json without "models" - falls back to the original
-EfficientNetB1 model (face_shape_effnetb1.keras, 80.4% on the 1,000-image
-test set) when its files are present.
+Models per gender (training v3): class_names.json lists, per gender, one model
+file or a list of them, e.g.
+{"models": {"female": ["face_shape_female_fold1.tflite", ...3 folds], ...}, "tta": "flip"}.
+With a list the server averages the probabilities of every model (ensemble of
+the K-fold models); with "tta": "flip" each model also sees the mirrored crop
+(test-time augmentation). .tflite files run on LiteRT (ai-edge-litert, ~10 MB,
+no TensorFlow); .keras files still work when TensorFlow is installed.
+
+A gender without its own model - or an old class_names.json without "models" -
+falls back to the original EfficientNetB1 model (face_shape_effnetb1.keras,
+80.4% on the 1,000-image test set, needs TensorFlow) when its files are present.
+
+Env:
+  FACE_SHAPE_MAX_MODELS  how many gender models (each = its whole ensemble) stay in RAM (default 2)
+  FACE_SHAPE_ENSEMBLE    use only the first N models of each ensemble (default: all) - faster on a slow CPU
+  FACE_SHAPE_TTA         "0" turns the mirrored second pass off (default: as class_names.json says)
 
 `MockFaceShapePredictor` (random result) is kept for development without
 TensorFlow: set FACE_SHAPE_PREDICTOR=mock.
@@ -37,7 +47,7 @@ import threading
 import urllib.request
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import NamedTuple, Optional
+from typing import NamedTuple, Optional, Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +63,6 @@ MODELS_DIR = Path(__file__).resolve().parents[2] / "models"
 MODEL_FILE = "face_shape_effnetb1.keras"          # legacy single model (fallback)
 LEGACY_SPEC = {"img_size": (240, 240), "preprocess": "none"}
 GENDERS = ("female", "male")
-IMAGENET_BGR_MEAN = (103.939, 116.779, 123.68)
 CLASS_FILE = "class_names.json"
 LANDMARKER_FILE = "face_landmarker.task"
 MAX_IMAGE_BYTES = 12 * 1024 * 1024
@@ -66,6 +75,14 @@ class PredictionResult(NamedTuple):
     face_shape_name: str
     confidence: float
     model: str = "default"   # which model answered: "female" / "male" / "default"
+    ranking: tuple = ()      # every shape, most likely first: ({"face_shape", "face_shape_name", "confidence"}, ...)
+
+
+def build_ranking(class_names: Sequence[str], probs) -> tuple:
+    order = sorted(range(len(class_names)), key=lambda i: -float(probs[i]))
+    return tuple({"face_shape": class_names[i],
+                  "face_shape_name": FACE_SHAPES.get(class_names[i], class_names[i]),
+                  "confidence": round(float(probs[i]) * 100, 1)} for i in order)
 
 
 class ModelUnavailableError(RuntimeError):
@@ -85,8 +102,12 @@ class MockFaceShapePredictor(FaceShapePredictor):
     def predict(self, image_data_url: str, gender: Optional[str] = None) -> PredictionResult:
         if not image_data_url or len(image_data_url) < 10:
             raise ValueError("ไม่มีรูปภาพสำหรับส่งวิเคราะห์")
-        shape_id = random.choice(list(FACE_SHAPES.keys()))
-        return PredictionResult(shape_id, FACE_SHAPES[shape_id], round(random.uniform(80, 95), 1))
+        names = list(FACE_SHAPES.keys())
+        probs = [random.random() for _ in names]
+        probs = [p / sum(probs) for p in probs]
+        ranking = build_ranking(names, probs)
+        top = ranking[0]
+        return PredictionResult(top["face_shape"], top["face_shape_name"], top["confidence"], ranking=ranking)
 
 
 def decode_data_url(image_data_url: str):
@@ -122,7 +143,7 @@ def ensure_model_file(models_dir: Path = MODELS_DIR, filename: str = MODEL_FILE)
     parts = sorted(models_dir.glob(f"{filename}.part*"))
     if not parts:
         raise ModelUnavailableError(f"ไม่พบไฟล์โมเดล {target}")
-    tmp = target.with_suffix(".keras.tmp")
+    tmp = target.parent / (target.name + ".tmp")
     with open(tmp, "wb") as out:
         for part in parts:
             out.write(part.read_bytes())
@@ -141,20 +162,32 @@ def model_available(models_dir: Path, filename: str) -> bool:
 def resolve_model_specs(meta: dict, models_dir: Path = MODELS_DIR) -> dict:
     """
     {"female": spec, "male": spec, "default": spec} for the models actually on disk.
-    spec = {"file", "img_size", "preprocess"}. Genders without their own model use "default".
+    spec = {"files": (file, ...), "img_size", "preprocess", "tta"}: more than one file = an ensemble
+    (probabilities averaged). Genders without their own model use "default".
     """
     specs = {}
     img_size = tuple(meta.get("img_size", LEGACY_SPEC["img_size"]))
     preprocess = meta.get("preprocess", "none")
-    for key, filename in (meta.get("models") or {}).items():
-        if model_available(models_dir, filename):
-            specs[key] = {"file": filename, "img_size": img_size, "preprocess": preprocess}
+    tta = str(meta.get("tta", "")).lower() == "flip"
+    env_tta = os.getenv("FACE_SHAPE_TTA", "").strip()
+    if env_tta:
+        tta = tta and env_tta not in ("0", "false", "no", "off")
+    limit = int(os.getenv("FACE_SHAPE_ENSEMBLE", "0") or 0)
+    for key, files in (meta.get("models") or {}).items():
+        files = [files] if isinstance(files, str) else list(files)
+        files = [f for f in files if model_available(models_dir, f)]
+        if limit > 0:
+            files = files[:limit]
+        if files:
+            specs[key] = {"files": tuple(files), "img_size": img_size, "preprocess": preprocess, "tta": tta}
+    legacy = {"files": (MODEL_FILE,), **LEGACY_SPEC, "tta": False}
     if "default" not in specs:
+        complete = all(g in specs for g in GENDERS)
         if not meta.get("models") and model_available(models_dir, MODEL_FILE):
-            specs["default"] = {"file": MODEL_FILE, "img_size": img_size, "preprocess": preprocess}
-        elif model_available(models_dir, MODEL_FILE):          # new meta, keep the old model as fallback
-            specs["default"] = {"file": MODEL_FILE, **LEGACY_SPEC}
-        elif specs:                                            # no legacy model: any trained gender answers
+            specs["default"] = {"files": (MODEL_FILE,), "img_size": img_size, "preprocess": preprocess, "tta": tta}
+        elif not complete and model_available(models_dir, MODEL_FILE):   # a gender is missing: old model covers it
+            specs["default"] = legacy
+        elif specs:                                            # every gender has a model: female answers "no gender"
             specs["default"] = specs.get("female") or next(iter(specs.values()))
     if not specs:
         raise ModelUnavailableError(f"ไม่พบไฟล์โมเดลใน {models_dir}")
@@ -167,13 +200,69 @@ def pick_spec_key(specs: dict, gender: Optional[str]) -> str:
 
 def apply_preprocess(arr, name: str):
     """arr: (..., H, W, 3) float32 RGB 0-255 -> what the backbone was trained on."""
-    if name == "resnet50":   # keras.applications.resnet50.preprocess_input ("caffe" mode)
-        out = arr[..., ::-1].copy()
-        out -= IMAGENET_BGR_MEAN
-        return out
-    if name in ("none", "", None):
-        return arr
-    raise ModelUnavailableError(f"ไม่รู้จัก preprocess แบบ {name!r} ใน {CLASS_FILE}")
+    from app.services import image_ops
+
+    try:
+        return image_ops.apply_preprocess(arr, name)
+    except ValueError as exc:
+        raise ModelUnavailableError(f"ไม่รู้จัก preprocess แบบ {name!r} ใน {CLASS_FILE}") from exc
+
+
+class TFLiteModel:
+    """One .tflite classifier on LiteRT. predict(batch (n, h, w, 3) float32) -> (n, classes)."""
+
+    def __init__(self, path: Path, threads: Optional[int] = None):
+        try:
+            from ai_edge_litert.interpreter import Interpreter
+        except ImportError:
+            try:
+                from tflite_runtime.interpreter import Interpreter
+            except ImportError:
+                try:
+                    from tensorflow.lite import Interpreter
+                except ImportError as exc:
+                    raise ModelUnavailableError(
+                        "เซิร์ฟเวอร์ยังไม่ได้ติดตั้ง LiteRT — รัน pip install -r requirements.txt") from exc
+        self.name = path.name
+        self._interp = Interpreter(model_path=str(path), num_threads=threads or int(os.getenv("FACE_SHAPE_THREADS", "1")))
+        self._in = self._interp.get_input_details()[0]["index"]
+        self._out = self._interp.get_output_details()[0]["index"]
+        self._batch = None
+
+    def predict(self, batch):
+        import numpy as np
+
+        batch = np.ascontiguousarray(batch, dtype=np.float32)
+        if self._batch != batch.shape:
+            self._interp.resize_tensor_input(self._in, list(batch.shape))
+            self._interp.allocate_tensors()
+            self._batch = batch.shape
+        self._interp.set_tensor(self._in, batch)
+        self._interp.invoke()
+        return np.array(self._interp.get_tensor(self._out))
+
+
+class KerasModel:
+    """A .keras classifier (needs TensorFlow) with the same predict() as TFLiteModel."""
+
+    def __init__(self, path: Path):
+        try:
+            import keras
+        except ImportError as exc:
+            raise ModelUnavailableError(
+                f"{path.name} ต้องใช้ TensorFlow ซึ่งเซิร์ฟเวอร์นี้ไม่ได้ติดตั้ง (ใช้ไฟล์ .tflite แทน)") from exc
+        self.name = path.name
+        # compile=False: the file stores a custom training loss we don't need for inference
+        self._model = keras.models.load_model(path, compile=False)
+
+    def predict(self, batch):
+        import numpy as np
+
+        return np.asarray(self._model.predict(batch, verbose=0))
+
+
+def load_model_file(path: Path):
+    return TFLiteModel(path) if path.suffix == ".tflite" else KerasModel(path)
 
 
 def _sha256(path: Path) -> str:
@@ -203,7 +292,7 @@ def ensure_landmarker_file(models_dir: Path = MODELS_DIR) -> Optional[Path]:
 
 
 class KerasFaceShapePredictor(FaceShapePredictor):
-    """The trained classifier(s). Load lazily (first request or warm_up()) and are thread-safe."""
+    """The trained classifier(s) (.tflite or .keras). Load lazily (first request or warm_up()); thread-safe."""
 
     def __init__(self, models_dir: Path = MODELS_DIR, max_loaded: Optional[int] = None):
         self.models_dir = Path(models_dir)
@@ -213,8 +302,8 @@ class KerasFaceShapePredictor(FaceShapePredictor):
         self._class_names = None
         self._crop_params = None
         self._specs = {}
-        self._models = {}           # spec key -> loaded keras model (most recently used last)
-        # each extra model costs RAM (ResNet50 ~ 100 MB+); Render free has 512 MB
+        self._models = {}           # spec key -> list of loaded models (most recently used last)
+        # each gender model (its whole ensemble) costs RAM; Render free has 512 MB
         self._max_loaded = max_loaded or int(os.getenv("FACE_SHAPE_MAX_MODELS", "2"))
 
     def warm_up(self) -> None:
@@ -226,12 +315,6 @@ class KerasFaceShapePredictor(FaceShapePredictor):
     def _prepare(self) -> None:
         if self._ready:
             return
-        try:
-            import keras  # noqa: F401
-            import tensorflow as tf  # noqa: F401  (backend for keras)
-        except ImportError as exc:
-            raise ModelUnavailableError(
-                "เซิร์ฟเวอร์ยังไม่ได้ติดตั้ง TensorFlow — รัน pip install -r requirements.txt") from exc
         from app.services import face_crop
 
         meta = json.loads((self.models_dir / CLASS_FILE).read_text(encoding="utf-8"))
@@ -248,38 +331,41 @@ class KerasFaceShapePredictor(FaceShapePredictor):
             raise ModelUnavailableError(
                 f"โหลดตัวหาใบหน้าไม่สำเร็จ: ต่ออินเทอร์เน็ตครั้งแรกเพื่อดาวน์โหลด {LANDMARKER_FILE}") from exc
         self._ready = True
-        logger.info("Face-shape models available: %s", {k: v["file"] for k, v in self._specs.items()})
+        logger.info("Face-shape models available: %s",
+                    {k: (list(v["files"]), "tta" if v["tta"] else "") for k, v in self._specs.items()})
 
     def _get_model(self, key: str):
-        import keras
+        """The loaded model(s) for a spec key: a list (one entry per ensemble member)."""
         import numpy as np
 
         if key in self._models:
             self._models[key] = self._models.pop(key)          # mark as most recently used
             return self._models[key]
         spec = self._specs[key]
-        same_file = [k for k, m in self._models.items() if self._specs[k]["file"] == spec["file"]]
-        if same_file:                                          # e.g. "default" is the female model
-            self._models[key] = self._models[same_file[0]]
+        same_files = [k for k in self._models if self._specs[k]["files"] == spec["files"]]
+        if same_files:                                         # e.g. "default" is the female model
+            self._models[key] = self._models[same_files[0]]
             return self._models[key]
-        while len({self._specs[k]["file"] for k in self._models}) >= self._max_loaded:
+        while len({self._specs[k]["files"] for k in self._models}) >= self._max_loaded:
             evicted = next(iter(self._models))
-            self._models.pop(evicted)
-            logger.info("Unloaded face-shape model %s (FACE_SHAPE_MAX_MODELS=%d)", evicted, self._max_loaded)
-        # compile=False: the file stores a custom training loss we don't need for inference
-        model = keras.models.load_model(ensure_model_file(self.models_dir, spec["file"]), compile=False)
-        # first call builds the graph; do it now so the user doesn't wait twice
-        model.predict(np.zeros((1, *spec["img_size"], 3), dtype="float32"), verbose=0)
-        self._models[key] = model
-        logger.info("Face-shape model ready: %s -> %s", key, spec["file"])
-        return model
+            dropped = self._models.pop(evicted)
+            if not any(m is dropped for m in self._models.values()):
+                logger.info("Unloaded face-shape model %s (FACE_SHAPE_MAX_MODELS=%d)", evicted, self._max_loaded)
+        models = []
+        for filename in spec["files"]:
+            model = load_model_file(ensure_model_file(self.models_dir, filename))
+            # first call builds the graph / allocates tensors; do it now so the user doesn't wait twice
+            model.predict(np.zeros((2 if spec["tta"] else 1, *spec["img_size"], 3), dtype="float32"))
+            models.append(model)
+        self._models[key] = models
+        logger.info("Face-shape model ready: %s -> %s%s", key, list(spec["files"]), " + flip TTA" if spec["tta"] else "")
+        return models
 
     def _preprocess(self, image, spec):
-        """PIL RGB -> (1, H, W, 3) float32, same steps as training. Raises ValueError when there's no face."""
+        """PIL RGB -> (1 or 2, H, W, 3) float32, same steps as training. Raises ValueError when there's no face."""
         import numpy as np
-        import tensorflow as tf
         from PIL import Image
-        from app.services import face_crop
+        from app.services import face_crop, image_ops
 
         crop, info = face_crop.crop_face(image, self._detector, self._crop_params)
         if info["status"] == "fallback":
@@ -289,9 +375,9 @@ class KerasFaceShapePredictor(FaceShapePredictor):
         buf.seek(0)
         with Image.open(buf) as im:
             arr = np.asarray(im.convert("RGB"), dtype="float32")
-        h, w = spec["img_size"]
-        arr = tf.image.resize_with_pad(arr, h, w).numpy()
-        return apply_preprocess(arr, spec["preprocess"])[None, ...]
+        if spec["preprocess"] not in ("resnet50", "none", "", None):
+            apply_preprocess(arr, spec["preprocess"])          # raises ModelUnavailableError
+        return image_ops.prepare_batch(arr, spec["img_size"], spec["preprocess"], spec["tta"])
 
     def predict(self, image_data_url: str, gender: Optional[str] = None) -> PredictionResult:
         import numpy as np
@@ -301,17 +387,26 @@ class KerasFaceShapePredictor(FaceShapePredictor):
             self._prepare()
             key = pick_spec_key(self._specs, gender)
             spec = self._specs[key]
-            model = self._get_model(key)
+            models = self._get_model(key)
             batch = self._preprocess(image, spec)
-            probs = np.asarray(model.predict(batch, verbose=0))[0]
-        idx = int(np.argmax(probs))
-        shape_id = self._class_names[idx]
+            probs = average_probs([m.predict(batch) for m in models])
+        ranking = build_ranking(self._class_names, probs)
+        top = ranking[0]
         return PredictionResult(
-            face_shape=shape_id,
-            face_shape_name=FACE_SHAPES.get(shape_id, shape_id),
-            confidence=round(float(probs[idx]) * 100, 1),
+            face_shape=top["face_shape"],
+            face_shape_name=top["face_shape_name"],
+            confidence=top["confidence"],
             model=key,
+            ranking=ranking,
         )
+
+
+def average_probs(outputs) -> "list[float]":
+    """Mean over every model and every batch row (original + mirrored crop) -> one probability vector."""
+    import numpy as np
+
+    stacked = np.concatenate([np.asarray(o, dtype="float64").reshape(-1, np.shape(o)[-1]) for o in outputs])
+    return stacked.mean(axis=0).tolist()
 
 
 def _make_predictor() -> FaceShapePredictor:

@@ -10,9 +10,9 @@ bcrypt>=4.1
 python-multipart>=0.0.9
 email-validator>=2.1
 # ---- face-shape model (app/services/face_shape_predictor.py) ----
-# model saved with Keras 3.13.2; TensorFlow 2.20+ supports Python 3.9-3.13
-tensorflow>=2.20
-keras>=3.13
+# the models ship as .tflite and run on LiteRT (~10 MB) instead of TensorFlow (~600 MB RAM/disk).
+# Only for the old .keras models (local experiments) install tensorflow>=2.20 keras>=3.13 by hand.
+ai-edge-litert>=1.2
 mediapipe>=0.10.21
 pillow>=10.0
 numpy>=1.26

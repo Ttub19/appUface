@@ -7,11 +7,39 @@
     "square"
   ],
   "img_size": [
-    240,
-    240
+    224,
+    224
   ],
   "resize": "resize_with_pad",
-  "input_range": "0-255 RGB (EfficientNet preprocess_input อยู่นอกโมเดล: identity)",
+  "preprocess": "resnet50",
+  "backbone": "resnet50",
+  "source": "roboflow",
+  "models": {
+    "female": [
+      "face_shape_female_fold1.tflite",
+      "face_shape_female_fold2.tflite",
+      "face_shape_female_fold3.tflite"
+    ],
+    "male": [
+      "face_shape_male_fold1.tflite",
+      "face_shape_male_fold2.tflite",
+      "face_shape_male_fold3.tflite"
+    ]
+  },
+  "accuracy": {
+    "female": {
+      "ensemble_tta_top1": 0.8038,
+      "ensemble_tta_top2": 0.9139,
+      "ensemble_tta_macro_f1": 0.802,
+      "n_test": 2986
+    },
+    "male": {
+      "ensemble_tta_top1": 0.8586,
+      "ensemble_tta_top2": 0.9697,
+      "ensemble_tta_macro_f1": 0.859,
+      "n_test": 396
+    }
+  },
   "face_crop": {
     "module": "face_crop.py",
     "version": 2,
@@ -25,10 +53,6 @@
       "min_face_frac": 0.08
     }
   },
-  "trained": {
-    "test_accuracy": 0.804,
-    "test_images": 1000,
-    "keras_version": "3.13.2",
-    "saved": "2026-10-21 02:55 (UTC+7)"
-  }
+  "format": "tflite (dynamic)",
+  "tta": "flip"
 }

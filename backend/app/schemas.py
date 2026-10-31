@@ -103,11 +103,19 @@ class PredictRequest(BaseModel):
         default=None, description="picks the gender-specific model when the server has one")
 
 
+class ShapeScore(BaseModel):
+    face_shape: FaceShapeId
+    face_shape_name: str
+    confidence: float
+
+
 class PredictResponse(BaseModel):
     face_shape: FaceShapeId
     face_shape_name: str
     confidence: float
     model: str = "default"
+    # every shape, most likely first (ranking[0] == the answer above); the result screen shows the runner-up
+    ranking: List[ShapeScore] = Field(default_factory=list)
 
 
 class ScanCreate(BaseModel):

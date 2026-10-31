@@ -44,18 +44,21 @@ class ModelFileAssembly(unittest.TestCase):
 
 
 class ShippedModelFiles(unittest.TestCase):
-    def test_parts_match_checksum_and_metadata(self):
+    def test_listed_models_match_checksum_and_metadata(self):
         d = fsp.MODELS_DIR
-        parts = sorted(d.glob(f"{fsp.MODEL_FILE}.part*"))
-        self.assertTrue(parts, "model parts are in backend/models")
-        h = hashlib.sha256()
-        for p in parts:
-            h.update(p.read_bytes())
-        self.assertEqual(h.hexdigest(), (d / f"{fsp.MODEL_FILE}.sha256").read_text().strip())
         meta = json.loads((d / fsp.CLASS_FILE).read_text(encoding="utf-8"))
         self.assertEqual(meta["class_names"], ["heart", "oblong", "oval", "round", "square"])
         self.assertEqual(set(meta["class_names"]), set(fsp.FACE_SHAPES))
         self.assertEqual(meta["face_crop"]["version"], 2)
+        files = [f for v in (meta.get("models") or {}).values() for f in ([v] if isinstance(v, str) else v)]
+        self.assertTrue(files, "class_names.json lists the models")
+        for name in files:
+            parts = sorted(d.glob(f"{name}.part*"))
+            self.assertTrue(parts, f"{name} parts are in backend/models")
+            h = hashlib.sha256()
+            for p in parts:
+                h.update(p.read_bytes())
+            self.assertEqual(h.hexdigest(), (d / f"{name}.sha256").read_text().strip(), name)
 
 
 class DecodeImage(unittest.TestCase):

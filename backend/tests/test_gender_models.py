@@ -5,6 +5,7 @@ needed - keras is replaced by a stub.
 Run: python -m unittest discover -s tests
 """
 import json
+import os
 import sys
 import tempfile
 import types
@@ -31,7 +32,8 @@ class ResolveSpecs(unittest.TestCase):
             touch(d, f"{fsp.MODEL_FILE}.part00")
             specs = fsp.resolve_model_specs({"class_names": [], "img_size": [240, 240]}, d)
             self.assertEqual(list(specs), ["default"])
-            self.assertEqual(specs["default"], {"file": fsp.MODEL_FILE, "img_size": (240, 240), "preprocess": "none"})
+            self.assertEqual(specs["default"], {"files": (fsp.MODEL_FILE,), "img_size": (240, 240),
+                                                "preprocess": "none", "tta": False})
             self.assertEqual(fsp.pick_spec_key(specs, "male"), "default")
             self.assertEqual(fsp.pick_spec_key(specs, None), "default")
 
@@ -40,10 +42,12 @@ class ResolveSpecs(unittest.TestCase):
             d = Path(t)
             touch(d, "face_shape_female.keras", f"{fsp.MODEL_FILE}.part00")   # male not trained / not copied
             specs = fsp.resolve_model_specs(V3_META, d)
-            self.assertEqual(specs["female"], {"file": "face_shape_female.keras", "img_size": (224, 224), "preprocess": "resnet50"})
+            self.assertEqual(specs["female"], {"files": ("face_shape_female.keras",), "img_size": (224, 224),
+                                               "preprocess": "resnet50", "tta": False})
             self.assertNotIn("male", specs)
             # the old EfficientNet keeps its own input size / preprocessing
-            self.assertEqual(specs["default"], {"file": fsp.MODEL_FILE, "img_size": (240, 240), "preprocess": "none"})
+            self.assertEqual(specs["default"], {"files": (fsp.MODEL_FILE,), "img_size": (240, 240),
+                                                "preprocess": "none", "tta": False})
             self.assertEqual(fsp.pick_spec_key(specs, "female"), "female")
             self.assertEqual(fsp.pick_spec_key(specs, "male"), "default")
 
@@ -53,7 +57,7 @@ class ResolveSpecs(unittest.TestCase):
             touch(d, "face_shape_female.keras.part00", "face_shape_male.keras")
             specs = fsp.resolve_model_specs(V3_META, d)
             self.assertEqual(set(specs), {"female", "male", "default"})
-            self.assertEqual(specs["default"]["file"], "face_shape_female.keras")
+            self.assertEqual(specs["default"]["files"], ("face_shape_female.keras",))
             self.assertEqual(fsp.pick_spec_key(specs, "male"), "male")
             self.assertEqual(fsp.pick_spec_key(specs, "other"), "default")
 
@@ -81,7 +85,7 @@ class LoadedModelLimit(unittest.TestCase):
     def setUp(self):
         self.loaded = []
         stub = types.ModuleType("keras")
-        stub.models = types.SimpleNamespace(load_model=self._load)
+        stub.models = types.SimpleNamespace(load_model=self._load)   # used by fsp.KerasModel
         self._old = sys.modules.get("keras")
         sys.modules["keras"] = stub
 
@@ -101,13 +105,95 @@ class LoadedModelLimit(unittest.TestCase):
             touch(d, "face_shape_female.keras", "face_shape_male.keras")
             p = fsp.KerasFaceShapePredictor(d, max_loaded=1)
             p._specs = fsp.resolve_model_specs(V3_META, d)
-            self.assertEqual(p._get_model("female").name, "face_shape_female.keras")
+            self.assertEqual([m.name for m in p._get_model("female")], ["face_shape_female.keras"])
             self.assertIs(p._get_model("default"), p._get_model("female"))   # same file, loaded once
             self.assertEqual(self.loaded, ["face_shape_female.keras"])
             p._get_model("male")                                            # limit 1 -> female unloaded
             self.assertEqual(set(p._models), {"male"})
             p._get_model("female")
             self.assertEqual(self.loaded, ["face_shape_female.keras", "face_shape_male.keras", "face_shape_female.keras"])
+
+
+ENSEMBLE_META = {**V3_META, "tta": "flip",
+                 "models": {g: [f"face_shape_{g}_fold{k}.tflite" for k in (1, 2, 3)] for g in ("female", "male")}}
+
+
+class FakeTFLite:
+    """Stands in for fsp.TFLiteModel: returns fixed probabilities per row, records the batch it saw."""
+    def __init__(self, path, rows):
+        self.name, self.rows, self.seen = Path(path).name, rows, []
+
+    def predict(self, batch):
+        self.seen.append(batch.shape)
+        return np.array(self.rows[: len(batch)], dtype="float32")
+
+
+class Ensemble(unittest.TestCase):
+    def test_lists_become_ensembles_with_tta(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            touch(d, *[f for fs in ENSEMBLE_META["models"].values() for f in fs])
+            specs = fsp.resolve_model_specs(ENSEMBLE_META, d)
+            self.assertEqual(specs["male"]["files"], tuple(f"face_shape_male_fold{k}.tflite" for k in (1, 2, 3)))
+            self.assertTrue(specs["male"]["tta"])
+            self.assertEqual(specs["default"], specs["female"])        # both genders present: no legacy model
+
+    def test_env_limits_ensemble_and_tta(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            touch(d, *[f for fs in ENSEMBLE_META["models"].values() for f in fs])
+            old = {k: os.environ.get(k) for k in ("FACE_SHAPE_ENSEMBLE", "FACE_SHAPE_TTA")}
+            os.environ.update(FACE_SHAPE_ENSEMBLE="1", FACE_SHAPE_TTA="0")
+            try:
+                specs = fsp.resolve_model_specs(ENSEMBLE_META, d)
+            finally:
+                for k, v in old.items():
+                    os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+            self.assertEqual(specs["female"]["files"], ("face_shape_female_fold1.tflite",))
+            self.assertFalse(specs["female"]["tta"])
+
+    def test_missing_fold_files_are_skipped(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            touch(d, "face_shape_female_fold1.tflite", "face_shape_female_fold3.tflite")
+            specs = fsp.resolve_model_specs(ENSEMBLE_META, d)
+            self.assertEqual(specs["female"]["files"], ("face_shape_female_fold1.tflite", "face_shape_female_fold3.tflite"))
+            self.assertNotIn("male", specs)
+
+    def test_average_over_models_and_mirrored_rows(self):
+        a = np.array([[0.6, 0.1, 0.1, 0.1, 0.1], [0.2, 0.5, 0.1, 0.1, 0.1]])   # one model: original + mirror
+        b = np.array([[0.2, 0.2, 0.4, 0.1, 0.1], [0.2, 0.2, 0.4, 0.1, 0.1]])
+        np.testing.assert_allclose(fsp.average_probs([a, b]), [0.3, 0.25, 0.25, 0.1, 0.1])
+
+    def test_predict_returns_ranking_from_ensemble(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            touch(d, *ENSEMBLE_META["models"]["male"])
+            rows = {1: [[.1, .2, .5, .1, .1]] * 2, 2: [[.1, .5, .2, .1, .1]] * 2, 3: [[.1, .3, .4, .1, .1]] * 2}
+            made = []
+
+            def fake_loader(path):
+                k = int(Path(path).stem[-1])
+                made.append(FakeTFLite(path, rows[k]))
+                return made[-1]
+
+            p = fsp.KerasFaceShapePredictor(d, max_loaded=2)
+            p._specs = fsp.resolve_model_specs(ENSEMBLE_META, d)
+            p._class_names = ENSEMBLE_META["class_names"]
+            p._ready = True
+            p._preprocess = lambda image, spec: np.zeros((2 if spec["tta"] else 1, 224, 224, 3), "float32")
+            old_loader, old_decode = fsp.load_model_file, fsp.decode_data_url
+            fsp.load_model_file, fsp.decode_data_url = fake_loader, lambda url: object()
+            try:
+                r = p.predict("data:image/png;base64,xxxxxxxxxxxx", "male")
+            finally:
+                fsp.load_model_file, fsp.decode_data_url = old_loader, old_decode
+            self.assertEqual(len(made), 3)
+            self.assertTrue(all(s == (2, 224, 224, 3) for m in made for s in m.seen))   # original + mirror
+            self.assertEqual((r.face_shape, r.confidence, r.model), ("oval", 36.7, "male"))
+            self.assertEqual([x["face_shape"] for x in r.ranking[:2]], ["oval", "oblong"])
+            self.assertEqual(r.ranking[1]["confidence"], 33.3)
+            self.assertAlmostEqual(sum(x["confidence"] for x in r.ranking), 100, delta=0.3)
 
 
 if __name__ == "__main__":

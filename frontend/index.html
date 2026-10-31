@@ -41,7 +41,7 @@
          Golden Ratio, Virtual Glasses and Virtual Hairstyle AR modules -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <link rel="stylesheet" href="css/style.css?v=20261029">
+    <link rel="stylesheet" href="css/style.css?v=20261031">
 </head>
 <body class="min-h-screen">
 
@@ -370,6 +370,7 @@
                                 <p class="text-sm text-[color:var(--ink-3)] mt-4">รูปหน้าของคุณคือ</p>
                                 <h3 id="res-shape" class="text-[28px] font-medium tracking-tight">-</h3>
                                 <span class="chip chip-accent mt-2">ตรงกัน <span id="res-confidence">92%</span></span>
+                                <p id="res-second" class="result-second hidden">ใกล้เคียงรองลงมา <strong id="res-second-name">-</strong> <span id="res-second-confidence"></span></p>
                             </div>
                         </div>
 

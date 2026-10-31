@@ -14,3 +14,10 @@ backend/models/*.part
 
 # E2E walkthrough screenshots (generated)
 e2e/screenshots/
+# joined at runtime from the .part files
+backend/models/face_shape_female.keras
+backend/models/face_shape_male.keras
+# raw Kaggle downloads (big)
+training/kaggle_output/
+# joined at runtime from the .tflite.part files
+backend/models/face_shape_*.tflite
