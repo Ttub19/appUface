@@ -39,8 +39,8 @@
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Noto+Serif+Thai:wght@500;600;700&display=swap" rel="stylesheet">
     <!-- MediaPipe Face Mesh: real 468-point facial landmark tracking used by the
          Golden Ratio, Virtual Glasses and Virtual Hairstyle AR modules -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <!-- MediaPipe: only Tasks Vision (js/mediapipeTasks.js). Don't add the old @mediapipe/face_mesh script back:
+         both builds share the global WASM `Module` and loading one after the other crashes the hair try-on. -->
     <link rel="stylesheet" href="css/style.css?v=20261031">
 </head>
 <body class="min-h-screen">

@@ -6,10 +6,8 @@ import {
     HeadScaleFusion, PlacementSmoother, computeHairPlacement, eulerFromTransformMatrix, faceEllipse, measureHairlineLift,
 } from "./headPose.js";
 
-// Pinned so the JS bundle and its WASM files always match.
-const TASKS_VISION_VERSION = "0.10.14";
-const TASKS_VISION_BASE = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VISION_VERSION}`;
-const FACE_LANDMARKER_MODEL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+// MediaPipe Tasks Vision: one pinned build for the whole app (see mediapipeTasks.js)
+import { FACE_LANDMARKER_MODEL, createTask, loadVision } from "../mediapipeTasks.js";
 const HAIR_SEGMENTER_MODEL = "https://storage.googleapis.com/mediapipe-models/image_segmenter/hair_segmenter/float32/latest/hair_segmenter.tflite";
 
 /** Width the frame is downscaled to before hair segmentation (mask cost scales with this). */
@@ -26,23 +24,13 @@ const PREPARED_CACHE_SIZE = 12;
 
 let modelsPromise = null;
 
-async function createTask(TaskClass, fileset, options) {
-    try {
-        return await TaskClass.createFromOptions(fileset, { ...options, baseOptions: { ...options.baseOptions, delegate: "GPU" } });
-    } catch (gpuError) {
-        console.warn(`${TaskClass.name}: GPU delegate unavailable, falling back to CPU`, gpuError);
-        return TaskClass.createFromOptions(fileset, { ...options, baseOptions: { ...options.baseOptions, delegate: "CPU" } });
-    }
-}
-
 /**
  * Loads MediaPipe Tasks Vision + both models once per page; later sessions
  * reuse them so re-opening the camera is instant. A failed load is not cached.
  */
 export function loadHairModels() {
     modelsPromise ??= (async () => {
-        const vision = await import(`${TASKS_VISION_BASE}/vision_bundle.mjs`);
-        const fileset = await vision.FilesetResolver.forVisionTasks(`${TASKS_VISION_BASE}/wasm`);
+        const { vision, fileset } = await loadVision();
         const [faceLandmarker, hairSegmenter] = await Promise.all([
             createTask(vision.FaceLandmarker, fileset, {
                 baseOptions: { modelAssetPath: FACE_LANDMARKER_MODEL },
@@ -367,8 +355,7 @@ let photoModelsPromise = null;
 /** Same two models as the live mode, in IMAGE running mode (one-shot detect / segment). */
 export function loadHairPhotoModels() {
     photoModelsPromise ??= (async () => {
-        const vision = await import(`${TASKS_VISION_BASE}/vision_bundle.mjs`);
-        const fileset = await vision.FilesetResolver.forVisionTasks(`${TASKS_VISION_BASE}/wasm`);
+        const { vision, fileset } = await loadVision();
         const [faceLandmarker, hairSegmenter] = await Promise.all([
             createTask(vision.FaceLandmarker, fileset, {
                 baseOptions: { modelAssetPath: FACE_LANDMARKER_MODEL },
