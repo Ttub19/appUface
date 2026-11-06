@@ -235,7 +235,7 @@ def variant_of(key: str, meta: dict) -> str:
 
 def list_variants(meta: dict, models_dir: Path = MODELS_DIR) -> list:
     """
-    The model versions the app can offer: [{"id", "label", "detail", "genders", "default"}].
+    The model versions the app can offer: [{"id", "label", "detail", "badge", "tech", "genders", "default"}].
     A version is listed when at least one gender has its files on disk; "genders" says which ones
     (the other gender then falls back to the default model).
     """
@@ -255,6 +255,7 @@ def list_variants(meta: dict, models_dir: Path = MODELS_DIR) -> list:
                 genders.append(g)
         if genders:
             out.append({"id": vid, "label": info.get("label", vid), "detail": info.get("detail", ""),
+                        "badge": info.get("badge", ""), "tech": info.get("tech", ""),
                         "genders": genders, "default": vid == default})
     return out
 

@@ -127,6 +127,8 @@ class ModelVariant(BaseModel):
     id: str
     label: str
     detail: str = ""
+    badge: str = ""          # short tag on the picker card, e.g. "แนะนำ" / "ทดลอง"
+    tech: str = ""           # backbone name shown small, e.g. "ResNet50"
     genders: List[str] = Field(default_factory=list)
     default: bool = False
 

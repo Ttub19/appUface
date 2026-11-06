@@ -112,11 +112,15 @@ export function stopCamera() {
 }
 
 // ---------- Model version picker ----------
-// The server can hold more than one trained model (e.g. v3 ResNet50 and v6 ConvNeXt trained on a
-// person-disjoint split). GET /scans/models says which ones exist; the choice is remembered per browser.
+// The server can hold more than one trained model (v3 ResNet50 = "Core", v6 ConvNeXt trained on a
+// person-disjoint split = "Vision"). GET /scans/models says which ones exist and for which genders;
+// the choice is remembered per browser. A model that has no file for the chosen gender is shown
+// disabled and the default model is used instead.
 const MODEL_PREF_KEY = "ushape.scanModel";
+const GENDER_TH = { male: "ผู้ชาย", female: "ผู้หญิง" };
 const FALLBACK_MODELS = [
-    { id: "v3", label: "รุ่น 1 · ResNet50", detail: "รุ่นแรก แบ่งข้อมูลเทรน/ทดสอบแบบสุ่มรายรูป", genders: ["female", "male"], default: true },
+    { id: "v3", label: "Core", badge: "แนะนำ", tech: "ResNet50",
+      detail: "โมเดลหลักของ uShape ใช้งานมาตั้งแต่แรก รองรับทั้งผู้ชายและผู้หญิง", genders: ["female", "male"], default: true },
 ];
 let scanModels = FALLBACK_MODELS;
 
@@ -124,10 +128,30 @@ function savedModel() {
     try { return localStorage.getItem(MODEL_PREF_KEY); } catch { return null; }
 }
 
+function chosenGender() {
+    return document.getElementById("gender-pref")?.value || "";
+}
+
+function defaultModel() {
+    return scanModels.find((m) => m.default) || scanModels[0];
+}
+
+function supports(model, gender) {
+    return !gender || !Array.isArray(model.genders) || model.genders.includes(gender);
+}
+
+/** The model the next scan will really use: the user's choice if it covers the chosen gender, else the default. */
 export function currentScanModel() {
-    const wanted = appState.scanModel || savedModel();
-    const found = scanModels.find((m) => m.id === wanted);
-    return (found || scanModels.find((m) => m.default) || scanModels[0]).id;
+    const wanted = scanModels.find((m) => m.id === (appState.scanModel || savedModel()));
+    const gender = chosenGender();
+    return (wanted && supports(wanted, gender) ? wanted : defaultModel()).id;
+}
+
+function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text) node.textContent = text;
+    return node;
 }
 
 function renderModelPicker() {
@@ -136,24 +160,32 @@ function renderModelPicker() {
     if (!wrap || !group) return;
     wrap.classList.toggle("hidden", scanModels.length < 2);       // one model: nothing to choose
     const selected = currentScanModel();
+    const gender = chosenGender();
     group.innerHTML = "";
     for (const m of scanModels) {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "seg-btn";
-        btn.setAttribute("role", "radio");
-        btn.dataset.model = m.id;
-        btn.textContent = m.label;
-        btn.setAttribute("aria-checked", String(m.id === selected));
-        btn.tabIndex = m.id === selected ? 0 : -1;
-        btn.addEventListener("click", () => setScanModel(m.id));
-        group.appendChild(btn);
+        const usable = supports(m, gender);
+        const card = el("button", "model-card");
+        card.type = "button";
+        card.dataset.model = m.id;
+        card.setAttribute("role", "radio");
+        card.setAttribute("aria-checked", String(m.id === selected));
+        card.tabIndex = m.id === selected ? 0 : -1;
+        if (!usable) card.setAttribute("aria-disabled", "true");
+
+        const head = el("span", "model-card-head");
+        head.append(el("span", "model-card-dot"), el("strong", "model-card-name", m.label));
+        if (m.badge) head.append(el("span", `model-badge${m.default ? " is-default" : ""}`, m.badge));
+        card.append(head);
+        card.append(el("span", "model-card-desc", m.detail || ""));
+        if (!usable) {
+            const fallback = defaultModel().label;
+            card.append(el("span", "model-card-note", `ยังไม่รองรับ${GENDER_TH[gender] || "เพศนี้"} จะใช้โมเดล ${fallback} แทน`));
+        } else if (m.tech) {
+            card.append(el("span", "model-card-tech", m.tech));
+        }
+        card.addEventListener("click", () => { if (usable) setScanModel(m.id); });
+        group.appendChild(card);
     }
-    const info = scanModels.find((m) => m.id === selected);
-    const gender = document.getElementById("gender-pref")?.value;
-    let detail = info?.detail || "";
-    if (info && gender && !info.genders.includes(gender)) detail += " (ผู้ชายยังใช้รุ่น 1 จนกว่าจะเพิ่มโมเดลรุ่นนี้)";
-    document.getElementById("model-pref-detail").textContent = detail;
 }
 
 export function setScanModel(id) {
@@ -174,12 +206,14 @@ export async function loadScanModels() {
     renderModelPicker();
 }
 
-// arrow keys move between the options (radio-group behaviour)
+// arrow keys move between the usable options (radio-group behaviour)
 document.addEventListener("keydown", (e) => {
     if (!e.target.closest?.("#model-pref") || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
     e.preventDefault();
-    const ids = scanModels.map((m) => m.id);
-    const i = ids.indexOf(currentScanModel());
+    const gender = chosenGender();
+    const ids = scanModels.filter((m) => supports(m, gender)).map((m) => m.id);
+    if (!ids.length) return;
+    const i = Math.max(0, ids.indexOf(currentScanModel()));
     const next = ids[(i + (e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 1) + ids.length) % ids.length];
     setScanModel(next);
     document.querySelector(`#model-pref [data-model="${next}"]`)?.focus();

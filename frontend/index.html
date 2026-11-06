@@ -41,7 +41,7 @@
          Golden Ratio, Virtual Glasses and Virtual Hairstyle AR modules -->
     <!-- MediaPipe: only Tasks Vision (js/mediapipeTasks.js). Don't add the old @mediapipe/face_mesh script back:
          both builds share the global WASM `Module` and loading one after the other crashes the hair try-on. -->
-    <link rel="stylesheet" href="css/style.css?v=20261106">
+    <link rel="stylesheet" href="css/style.css?v=20261106b">
 </head>
 <body class="min-h-screen">
 
@@ -229,26 +229,28 @@
                             <li><b>03</b><div><strong>ลองทรงที่แนะนำ แล้วจองช่าง</strong><span>สวมทรงใหม่บนรูปของคุณ ก่อนตัดจริง</span></div></li>
                         </ol>
 
+                        <div class="scan-options">
+                            <label class="home-pref" for="gender-pref">
+                                ให้คำแนะนำแบบ
+                                <select id="gender-pref" class="select">
+                                    <option value="male">ผู้ชาย</option>
+                                    <option value="female">ผู้หญิง</option>
+                                </select>
+                            </label>
+                            <div class="model-pref hidden" id="model-pref-wrap">
+                                <div class="model-pref-head">
+                                    <span class="model-pref-title" id="model-pref-title">เลือกโมเดลวิเคราะห์</span>
+                                    <span class="model-pref-hint">เปลี่ยนได้ทุกครั้งก่อนกดวิเคราะห์</span>
+                                </div>
+                                <div class="model-cards" id="model-pref" role="radiogroup" aria-labelledby="model-pref-title"></div>
+                            </div>
+                        </div>
+
                         <div class="home-actions">
                             <button type="button" onclick="document.getElementById('file-input').click()" class="btn btn-secondary btn-lg"><i class="fa-regular fa-image"></i>เลือกรูป</button>
                             <button type="button" onclick="startCamera()" class="btn btn-secondary btn-lg"><i class="fa-solid fa-camera"></i>ถ่ายรูป</button>
                             <button type="button" onclick="runAI()" class="btn btn-primary btn-lg">วิเคราะห์รูปหน้า</button>
                             <input type="file" id="file-input" class="hidden" accept="image/*" onchange="handleFileUpload(event)">
-                        </div>
-                        <label class="home-pref" for="gender-pref">
-                            ให้คำแนะนำแบบ
-                            <select id="gender-pref" class="select">
-                                <option value="male">ผู้ชาย</option>
-                                <option value="female">ผู้หญิง</option>
-                            </select>
-                        </label>
-                        <div class="model-pref" id="model-pref-wrap">
-                            <span class="model-pref-title" id="model-pref-title">โมเดลที่ใช้วิเคราะห์</span>
-                            <div class="seg" id="model-pref" role="radiogroup" aria-labelledby="model-pref-title">
-                                <button type="button" role="radio" class="seg-btn" data-model="v3" aria-checked="true" onclick="setScanModel('v3')">รุ่น 1 · ResNet50</button>
-                                <button type="button" role="radio" class="seg-btn" data-model="v6" aria-checked="false" onclick="setScanModel('v6')">รุ่น 2 · ConvNeXt</button>
-                            </div>
-                            <p class="model-pref-detail" id="model-pref-detail">รุ่นแรก แบ่งข้อมูลเทรน/ทดสอบแบบสุ่มรายรูป</p>
                         </div>
                     </div>
 
@@ -379,7 +381,7 @@
                                 <h3 id="res-shape" class="text-[28px] font-medium tracking-tight">-</h3>
                                 <span class="chip chip-accent mt-2">ตรงกัน <span id="res-confidence">92%</span></span>
                                 <p id="res-second" class="result-second hidden">ใกล้เคียงรองลงมา <strong id="res-second-name">-</strong> <span id="res-second-confidence"></span></p>
-                                <p id="res-model" class="result-model hidden">วิเคราะห์ด้วย <strong id="res-model-name">-</strong></p>
+                                <p id="res-model" class="result-model hidden">วิเคราะห์ด้วยโมเดล <strong id="res-model-name">-</strong></p>
                             </div>
                         </div>
 
