@@ -121,7 +121,11 @@ const GENDER_TH = { male: "ผู้ชาย", female: "ผู้หญิง" 
 const FALLBACK_MODELS = [
     { id: "v3", label: "Core", badge: "แนะนำ", tech: "ResNet50",
       detail: "โมเดลหลักของ uShape ใช้งานมาตั้งแต่แรก รองรับทั้งผู้ชายและผู้หญิง", genders: ["female", "male"], default: true },
+    { id: "v6", label: "Vision", badge: "ทดลอง", tech: "ConvNeXt",
+      detail: "โมเดลใหม่ที่ฝึกให้อ่านโครงหน้าของคนที่ไม่เคยเห็นมาก่อน ผลอาจต่างจาก Core ลองเทียบกันได้", genders: ["female"], default: false },
 ];
+// Shown until GET /scans/models answers (Render's free server can take ~1 min to wake up), so the
+// picker never disappears; the server's list replaces it, and the result line says which model answered.
 let scanModels = FALLBACK_MODELS;
 
 function savedModel() {
@@ -195,15 +199,16 @@ export function setScanModel(id) {
     renderModelPicker();
 }
 
-export async function loadScanModels() {
+export async function loadScanModels(attempt = 1) {
+    renderModelPicker();                                   // fallback list right away
     try {
         const list = await apiClient.listModels();
         if (Array.isArray(list) && list.length) scanModels = list;
+        renderModelPicker();
     } catch (err) {
-        console.warn("GET /scans/models failed, showing the default model only:", err);
-        scanModels = FALLBACK_MODELS;
+        console.warn(`GET /scans/models failed (attempt ${attempt}), keeping the built-in list:`, err);
+        if (attempt < 4) setTimeout(() => loadScanModels(attempt + 1), 15000);   // server may be waking up
     }
-    renderModelPicker();
 }
 
 // arrow keys move between the usable options (radio-group behaviour)
