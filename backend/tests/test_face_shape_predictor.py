@@ -50,10 +50,18 @@ class ShippedModelFiles(unittest.TestCase):
         self.assertEqual(meta["class_names"], ["heart", "oblong", "oval", "round", "square"])
         self.assertEqual(set(meta["class_names"]), set(fsp.FACE_SHAPES))
         self.assertEqual(meta["face_crop"]["version"], 2)
-        files = [f for v in (meta.get("models") or {}).values() for f in ([v] if isinstance(v, str) else v)]
+        files, optional = [], set()
+        for key, v in (meta.get("models") or {}).items():
+            v = v.get("files", []) if isinstance(v, dict) else v
+            v = [v] if isinstance(v, str) else list(v)
+            files += v
+            if "@" in key:                       # extra model versions may not be shipped yet
+                optional.update(v)
         self.assertTrue(files, "class_names.json lists the models")
         for name in files:
             parts = sorted(d.glob(f"{name}.part*"))
+            if not parts and name in optional:
+                continue
             self.assertTrue(parts, f"{name} parts are in backend/models")
             h = hashlib.sha256()
             for p in parts:

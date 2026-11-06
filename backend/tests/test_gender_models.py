@@ -160,6 +160,52 @@ class Ensemble(unittest.TestCase):
             self.assertEqual(specs["female"]["files"], ("face_shape_female_fold1.tflite", "face_shape_female_fold3.tflite"))
             self.assertNotIn("male", specs)
 
+    def test_model_versions_pick_and_fall_back(self):
+        meta = {"class_names": [], "img_size": [224, 224], "preprocess": "resnet50", "tta": "flip",
+                "default_variant": "v3",
+                "variants": {"v3": {"label": "รุ่น 1"}, "v6": {"label": "รุ่น 2"}, "v9": {"label": "ไม่มีไฟล์"}},
+                "models": {"female": [f"f3_{k}.tflite" for k in (1, 2)], "male": [f"m3_{k}.tflite" for k in (1, 2)],
+                           "female@v6": {"files": [f"f6_{k}.tflite" for k in (1, 2)], "preprocess": "none"},
+                           "male@v6": {"files": [f"m6_{k}.tflite" for k in (1, 2)], "preprocess": "none"}}}
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            touch(d, "f3_1.tflite", "f3_2.tflite", "m3_1.tflite.part00", "m3_2.tflite", "f6_1.tflite", "f6_2.tflite.part00")
+            specs = fsp.resolve_model_specs(meta, d)
+            self.assertEqual(fsp.pick_spec_key(specs, "female", "v6"), "female@v6")
+            self.assertEqual(specs["female@v6"]["preprocess"], "none")
+            self.assertEqual(fsp.pick_spec_key(specs, "female", "v3"), "female")
+            self.assertEqual(fsp.pick_spec_key(specs, "female", None), "female")
+            self.assertEqual(fsp.pick_spec_key(specs, "male", "v6"), "male")        # no male v6 files: default model
+            self.assertEqual(fsp.pick_spec_key(specs, None, "v6"), "female@v6")
+            self.assertEqual(fsp.pick_spec_key(specs, "female", "nope"), "female")
+            self.assertEqual(fsp.variant_of("female@v6", meta), "v6")
+            self.assertEqual(fsp.variant_of("male", meta), "v3")
+            listed = fsp.list_variants(meta, d)
+            self.assertEqual([(v["id"], v["genders"], v["default"]) for v in listed],
+                             [("v3", ["female", "male"], True), ("v6", ["female"], False)])
+
+    def test_per_gender_settings_override_top_level(self):
+        meta = {"class_names": [], "img_size": [224, 224], "preprocess": "resnet50", "tta": "flip",
+                "models": {"female": {"files": [f"face_shape_female_v4_fold{k}.tflite" for k in (1, 2, 3)],
+                                      "preprocess": "none"},
+                           "male": [f"face_shape_male_fold{k}.tflite" for k in (1, 2, 3)]}}
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            touch(d, *[f"face_shape_female_v4_fold{k}.tflite.part00" for k in (1, 2, 3)],
+                  *[f"face_shape_male_fold{k}.tflite" for k in (1, 2, 3)])
+            specs = fsp.resolve_model_specs(meta, d)
+            self.assertEqual(specs["female"], {"files": tuple(f"face_shape_female_v4_fold{k}.tflite" for k in (1, 2, 3)),
+                                               "img_size": (224, 224), "preprocess": "none", "tta": True})
+            self.assertEqual(specs["male"]["preprocess"], "resnet50")
+            self.assertTrue(specs["male"]["tta"])
+            self.assertEqual(specs["default"], specs["female"])
+            old = os.environ.get("FACE_SHAPE_TTA")
+            os.environ["FACE_SHAPE_TTA"] = "0"
+            try:
+                self.assertFalse(fsp.resolve_model_specs(meta, d)["female"]["tta"])     # env still wins
+            finally:
+                os.environ.pop("FACE_SHAPE_TTA") if old is None else os.environ.__setitem__("FACE_SHAPE_TTA", old)
+
     def test_average_over_models_and_mirrored_rows(self):
         a = np.array([[0.6, 0.1, 0.1, 0.1, 0.1], [0.2, 0.5, 0.1, 0.1, 0.1]])   # one model: original + mirror
         b = np.array([[0.2, 0.2, 0.4, 0.1, 0.1], [0.2, 0.2, 0.4, 0.1, 0.1]])

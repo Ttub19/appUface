@@ -124,13 +124,18 @@ Auth ใช้ `Authorization: Bearer <token>` header หลัง login (มา
 
 ## โมเดลวิเคราะห์รูปหน้า (`models/`)
 
-- `face_shape_<female|male>_fold1..3.tflite.part*` + `.sha256` — ResNet50 แยกเพศ ครบ 3 fold (training v3) แปลงเป็น TFLite
-  (น้ำหนัก int8) ด้วย `training/convert_tflite.py` ตอนรันครั้งแรก backend จะรวม part เป็นไฟล์และเช็ก SHA-256 ให้เอง
+- **2 รุ่นให้ผู้ใช้เลือก** (`GET /scans/models` บอกว่ามีรุ่นไหนบ้าง, `POST /scans/predict` ส่ง `"model": "v3"|"v6"`)
+  - รุ่น 1 `v3` (ค่าเริ่มต้น): `face_shape_<female|male>_fold1..3.tflite.part*` — ResNet50 แยกเพศ split สุ่มรายรูป
+  - รุ่น 2 `v6`: `face_shape_<female|male>_v6_fold1..3.tflite.part*` — ConvNeXt-Tiny แบ่งชุดเทรน/ทดสอบตามบุคคล
+    (เพศที่ยังไม่มีไฟล์ v6 จะใช้รุ่น 1 แทน และ response บอก `model_version` ที่ตอบจริง)
+  แปลงเป็น TFLite (น้ำหนัก int8) ตอนรันครั้งแรก backend จะรวม part เป็นไฟล์และเช็ก SHA-256 ให้เอง
 - ทายแบบ **ensemble 3 fold + TTA (กลับซ้าย-ขวา)**: แต่ละรูปผ่านโมเดล 3 ตัว x 2 ภาพ แล้วเฉลี่ยความน่าจะเป็น
-  (ชุดทดสอบเดิม: หญิง top-1 80.8% / top-2 91.2%, ชาย top-1 85.9% / top-2 97.0%) — API ส่ง `ranking` ทุกทรงเรียงจากมากไปน้อย
+  (รุ่น 1 บน split เดิม: หญิง 80.4% / 91.4%, ชาย 85.9% / 97.0% — มีคนซ้ำข้ามชุด; รุ่น 2 กับคนที่ไม่เคยเห็น: หญิง 60.8% / 81.9%) — API ส่ง `ranking` ทุกทรงเรียงจากมากไปน้อย
   หน้าเว็บแสดงทรงที่ใกล้เคียงรองลงมาด้วย
 - รันบน **LiteRT** (`ai-edge-litert`) ไม่ต้องติดตั้ง TensorFlow — RAM น้อยพอสำหรับ Render ฟรี (512 MB)
 - `class_names.json` — ลำดับคลาส ไฟล์โมเดลของแต่ละเพศ (`models`), `"tta": "flip"` และค่าการครอปหน้าที่ใช้ตอนเทรน (ต้องตรงกับ `app/services/face_crop.py`)
+  — แต่ละเพศใน `models` เป็นรายชื่อไฟล์ หรือ `{"files": [...], "preprocess": "none"}` เพื่อตั้งค่าเฉพาะเพศนั้น
+  (รุ่น 2 ConvNeXt มี normalization ในโมเดลเอง = `"none"`, รุ่น 1 ResNet50 = `"resnet50"` ตามค่าบนสุด)
 - `app/services/image_ops.py` — resize/preprocess แบบ NumPy ที่ให้ค่าเท่ากับ TensorFlow ตอนเทรน (convert_tflite.py ตรวจให้)
 - `face_landmarker.task` — โมเดลหาใบหน้าของ MediaPipe (~3.6 MB) ดาวน์โหลดอัตโนมัติครั้งแรก ต้องต่ออินเทอร์เน็ต
 - โหลดโมเดลเบื้องหลังตอนเปิดเซิร์ฟเวอร์ — log `Face-shape model ready` = พร้อมใช้

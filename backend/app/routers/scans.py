@@ -1,5 +1,6 @@
 """
 POST   /scans/predict     — run face-shape prediction on an image (open to guests too)
+GET    /scans/models      — the model versions the user can pick (open to guests too)
 POST   /scans             — save a scan result to the current user's history
 GET    /scans             — list the current user's history (with search + shape filter)
 DELETE /scans/{scan_id}   — remove one history row
@@ -19,8 +20,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import ScanHistory, User
-from app.schemas import PredictRequest, PredictResponse, ScanCreate, ScanOut
-from app.services.face_shape_predictor import FaceShapePredictor, ModelUnavailableError, get_predictor
+from app.schemas import ModelVariant, PredictRequest, PredictResponse, ScanCreate, ScanOut
+from app.services.face_shape_predictor import (FaceShapePredictor, ModelUnavailableError, available_variants,
+                                               get_predictor)
 
 router = APIRouter(prefix="/scans", tags=["scans"])
 
@@ -36,7 +38,7 @@ async def predict(
     """
     try:
         # model inference is CPU-bound (~0.1-0.5 s): keep it off the event loop
-        result = await run_in_threadpool(predictor.predict, payload.image_data_url, payload.gender)
+        result = await run_in_threadpool(predictor.predict, payload.image_data_url, payload.gender, payload.model)
     except ValueError as exc:  # bad image / no face found
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except ModelUnavailableError as exc:
@@ -48,7 +50,14 @@ async def predict(
         confidence=result.confidence,
         model=result.model,
         ranking=list(result.ranking),
+        model_version=result.variant,
     )
+
+
+@router.get("/models", response_model=List[ModelVariant])
+async def list_models() -> List[ModelVariant]:
+    """Model versions whose files are on this server (the scan screen shows these as choices)."""
+    return [ModelVariant(**v) for v in await run_in_threadpool(available_variants)]
 
 
 @router.post("", response_model=ScanOut, status_code=status.HTTP_201_CREATED)

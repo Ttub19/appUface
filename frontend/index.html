@@ -41,7 +41,7 @@
          Golden Ratio, Virtual Glasses and Virtual Hairstyle AR modules -->
     <!-- MediaPipe: only Tasks Vision (js/mediapipeTasks.js). Don't add the old @mediapipe/face_mesh script back:
          both builds share the global WASM `Module` and loading one after the other crashes the hair try-on. -->
-    <link rel="stylesheet" href="css/style.css?v=20261031">
+    <link rel="stylesheet" href="css/style.css?v=20261106">
 </head>
 <body class="min-h-screen">
 
@@ -57,7 +57,7 @@
     <!-- ============ LOGIN SCREEN ============ -->
     <div id="screen-login" class="auth-shell">
         <section class="auth-visual" aria-hidden="true">
-            <img src="assets/images/login-portrait.jpg?v=20261022b" alt="">
+            <img src="assets/images/login-portrait.jpg?v=20261106" alt="">
             <div class="brand absolute top-7 left-8 z-[3]">
                 <span class="brand-mark"><svg><use href="#logo-mark"/></svg></span>
                 <span class="brand-name !text-white">uShape</span>
@@ -69,7 +69,7 @@
         </section>
 
         <div class="auth-mobile-photo" aria-hidden="true">
-            <img src="assets/images/login-portrait.jpg?v=20261022b" alt="">
+            <img src="assets/images/login-portrait.jpg?v=20261106" alt="">
             <div class="brand">
                 <span class="brand-mark"><svg><use href="#logo-mark"/></svg></span>
                 <span class="brand-name">uShape</span>
@@ -242,6 +242,14 @@
                                 <option value="female">ผู้หญิง</option>
                             </select>
                         </label>
+                        <div class="model-pref" id="model-pref-wrap">
+                            <span class="model-pref-title" id="model-pref-title">โมเดลที่ใช้วิเคราะห์</span>
+                            <div class="seg" id="model-pref" role="radiogroup" aria-labelledby="model-pref-title">
+                                <button type="button" role="radio" class="seg-btn" data-model="v3" aria-checked="true" onclick="setScanModel('v3')">รุ่น 1 · ResNet50</button>
+                                <button type="button" role="radio" class="seg-btn" data-model="v6" aria-checked="false" onclick="setScanModel('v6')">รุ่น 2 · ConvNeXt</button>
+                            </div>
+                            <p class="model-pref-detail" id="model-pref-detail">รุ่นแรก แบ่งข้อมูลเทรน/ทดสอบแบบสุ่มรายรูป</p>
+                        </div>
                     </div>
 
                     <figure class="home-figure">
@@ -254,7 +262,7 @@
                             </div>
 
                             <div id="preview-placeholder" class="absolute inset-0">
-                                <img src="assets/images/scan-portrait.jpg?v=20261022b" alt="ตัวอย่างรูปหน้าตรงที่เหมาะสำหรับวิเคราะห์">
+                                <img src="assets/images/scan-portrait.jpg?v=20261106" alt="ตัวอย่างรูปหน้าตรงที่เหมาะสำหรับวิเคราะห์">
                             </div>
 
                             <video id="camera-video" class="hidden absolute inset-0 w-full h-full object-cover is-mirrored" autoplay playsinline muted></video>
@@ -315,7 +323,7 @@
                     </div>
                     <div class="home-tools">
                         <button type="button" onclick="navigateTo('screen-hairstyle')" data-mirror="nav-hairstyle" class="home-feature">
-                            <div class="home-feature-img"><img src="assets/images/tile-hair.jpg?v=20261022b" alt="ช่างตัดผมในร้าน พร้อมให้บริการหลังลองทรงผม"></div>
+                            <div class="home-feature-img"><img src="assets/images/tile-hair.jpg?v=20261106" alt="ช่างทำผมกำลังเป่าผมให้ลูกค้าในร้าน"></div>
                             <h3>ลองทรงผมบนรูปของคุณ</h3>
                             <p>ระบบกลบผมเดิมในรูปของคุณ แล้วสวมทรงใหม่ เปลี่ยนทรงและสีเทียบกันได้ทันทีก่อนตัดสินใจ</p>
                             <span class="more">เปิดห้องลองทรงผม <i class="fa-solid fa-arrow-right text-xs"></i></span>
@@ -371,6 +379,7 @@
                                 <h3 id="res-shape" class="text-[28px] font-medium tracking-tight">-</h3>
                                 <span class="chip chip-accent mt-2">ตรงกัน <span id="res-confidence">92%</span></span>
                                 <p id="res-second" class="result-second hidden">ใกล้เคียงรองลงมา <strong id="res-second-name">-</strong> <span id="res-second-confidence"></span></p>
+                                <p id="res-model" class="result-model hidden">วิเคราะห์ด้วย <strong id="res-model-name">-</strong></p>
                             </div>
                         </div>
 

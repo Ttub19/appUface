@@ -11,7 +11,7 @@ import { handleAuthSubmit, toggleAuthMode, toggleBarberRegistrationFields, conti
 import { navigateTo, openMobileMenu, closeMobileMenu, goHome } from "./ui/navigation.js";
 import {
     handleFileUpload, startCamera, capturePhoto, stopCamera,
-    runAI, shareResult, toggleFavorite
+    runAI, shareResult, toggleFavorite, setScanModel, loadScanModels
 } from "./ui/scanScreen.js";
 import { removeFavorite } from "./ui/favoritesScreen.js";
 import { openGuideShape, closeGuideShape, tryHairForShape, tryGlassesForShape } from "./ui/guideScreen.js";
@@ -29,7 +29,7 @@ Object.assign(window, {
     handleAuthSubmit, toggleAuthMode, toggleBarberRegistrationFields, continueAsGuest, handleLogout,
     navigateTo, openMobileMenu, closeMobileMenu, goHome,
     // scan & analyze
-    handleFileUpload, startCamera, capturePhoto, stopCamera, runAI, shareResult, toggleFavorite,
+    handleFileUpload, startCamera, capturePhoto, stopCamera, runAI, shareResult, toggleFavorite, setScanModel,
     // favorites
     removeFavorite,
     // face-shape guide
@@ -56,3 +56,4 @@ Object.assign(window, {
 // restore that session and skip straight past the login screen. Otherwise
 // applyRolePermissions() just sets up the guest-level UI on the login screen. ----
 restoreSessionOnLoad();
+loadScanModels();          // which model versions the server offers (scan screen picker)

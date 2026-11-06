@@ -12,7 +12,7 @@
   ],
   "resize": "resize_with_pad",
   "preprocess": "resnet50",
-  "backbone": "resnet50",
+  "backbone": "v3: resnet50 / v6: convnext_tiny",
   "source": "roboflow",
   "models": {
     "female": [
@@ -24,20 +24,49 @@
       "face_shape_male_fold1.tflite",
       "face_shape_male_fold2.tflite",
       "face_shape_male_fold3.tflite"
-    ]
+    ],
+    "female@v6": {
+      "files": [
+        "face_shape_female_v6_fold1.tflite",
+        "face_shape_female_v6_fold2.tflite",
+        "face_shape_female_v6_fold3.tflite"
+      ],
+      "preprocess": "none",
+      "backbone": "convnext_tiny"
+    },
+    "male@v6": {
+      "files": [
+        "face_shape_male_v6_fold1.tflite",
+        "face_shape_male_v6_fold2.tflite",
+        "face_shape_male_v6_fold3.tflite"
+      ],
+      "preprocess": "none",
+      "backbone": "convnext_tiny"
+    }
   },
   "accuracy": {
-    "female": {
-      "ensemble_tta_top1": 0.8038,
-      "ensemble_tta_top2": 0.9139,
-      "ensemble_tta_macro_f1": 0.802,
-      "n_test": 2986
+    "v3": {
+      "split": "สุ่มรายรูป (คนเดียวกันอยู่ได้ทั้งชุดเทรนและชุดทดสอบ)",
+      "female": {
+        "ensemble_tta_top1": 0.8038,
+        "ensemble_tta_top2": 0.9139,
+        "n_test_images": 2986
+      },
+      "male": {
+        "ensemble_tta_top1": 0.8586,
+        "ensemble_tta_top2": 0.9697,
+        "n_test_images": 396
+      }
     },
-    "male": {
-      "ensemble_tta_top1": 0.8586,
-      "ensemble_tta_top2": 0.9697,
-      "ensemble_tta_macro_f1": 0.859,
-      "n_test": 396
+    "v6": {
+      "split": "ตามบุคคล (คนในชุดทดสอบไม่อยู่ในชุดเทรน)",
+      "female": {
+        "ensemble_tta_top1": 0.608,
+        "ensemble_tta_top2": 0.8189,
+        "macro_f1": 0.5895,
+        "n_test_sources": 602,
+        "n_test_people": 97
+      }
     }
   },
   "face_crop": {
@@ -54,5 +83,16 @@
     }
   },
   "format": "tflite (dynamic)",
-  "tta": "flip"
+  "tta": "flip",
+  "default_variant": "v3",
+  "variants": {
+    "v3": {
+      "label": "รุ่น 1 · ResNet50",
+      "detail": "รุ่นแรก แบ่งข้อมูลเทรน/ทดสอบแบบสุ่มรายรูป"
+    },
+    "v6": {
+      "label": "รุ่น 2 · ConvNeXt",
+      "detail": "รุ่นใหม่ แบ่งข้อมูลตามบุคคล วัดผลกับคนที่ไม่เคยอยู่ในชุดเทรน"
+    }
+  }
 }

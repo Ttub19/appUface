@@ -101,6 +101,9 @@ class PredictRequest(BaseModel):
     image_data_url: str = Field(min_length=10, description="base64 data URL of the captured/uploaded photo")
     gender: Optional[Literal["male", "female"]] = Field(
         default=None, description="picks the gender-specific model when the server has one")
+    model: Optional[str] = Field(
+        default=None, pattern=r"^[A-Za-z0-9_-]{1,20}$",
+        description="model version from GET /scans/models (e.g. v3, v6); empty = the default version")
 
 
 class ShapeScore(BaseModel):
@@ -116,6 +119,16 @@ class PredictResponse(BaseModel):
     model: str = "default"
     # every shape, most likely first (ranking[0] == the answer above); the result screen shows the runner-up
     ranking: List[ShapeScore] = Field(default_factory=list)
+    model_version: str = ""      # which version answered (v3 / v6); may differ from the request when that
+                                 # version has no model for this gender
+
+
+class ModelVariant(BaseModel):
+    id: str
+    label: str
+    detail: str = ""
+    genders: List[str] = Field(default_factory=list)
+    default: bool = False
 
 
 class ScanCreate(BaseModel):

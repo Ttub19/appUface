@@ -111,6 +111,85 @@ export function stopCamera() {
     if (!appState.selectedImg) document.getElementById("preview-placeholder").classList.remove("hidden");
 }
 
+// ---------- Model version picker ----------
+// The server can hold more than one trained model (e.g. v3 ResNet50 and v6 ConvNeXt trained on a
+// person-disjoint split). GET /scans/models says which ones exist; the choice is remembered per browser.
+const MODEL_PREF_KEY = "ushape.scanModel";
+const FALLBACK_MODELS = [
+    { id: "v3", label: "รุ่น 1 · ResNet50", detail: "รุ่นแรก แบ่งข้อมูลเทรน/ทดสอบแบบสุ่มรายรูป", genders: ["female", "male"], default: true },
+];
+let scanModels = FALLBACK_MODELS;
+
+function savedModel() {
+    try { return localStorage.getItem(MODEL_PREF_KEY); } catch { return null; }
+}
+
+export function currentScanModel() {
+    const wanted = appState.scanModel || savedModel();
+    const found = scanModels.find((m) => m.id === wanted);
+    return (found || scanModels.find((m) => m.default) || scanModels[0]).id;
+}
+
+function renderModelPicker() {
+    const wrap = document.getElementById("model-pref-wrap");
+    const group = document.getElementById("model-pref");
+    if (!wrap || !group) return;
+    wrap.classList.toggle("hidden", scanModels.length < 2);       // one model: nothing to choose
+    const selected = currentScanModel();
+    group.innerHTML = "";
+    for (const m of scanModels) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "seg-btn";
+        btn.setAttribute("role", "radio");
+        btn.dataset.model = m.id;
+        btn.textContent = m.label;
+        btn.setAttribute("aria-checked", String(m.id === selected));
+        btn.tabIndex = m.id === selected ? 0 : -1;
+        btn.addEventListener("click", () => setScanModel(m.id));
+        group.appendChild(btn);
+    }
+    const info = scanModels.find((m) => m.id === selected);
+    const gender = document.getElementById("gender-pref")?.value;
+    let detail = info?.detail || "";
+    if (info && gender && !info.genders.includes(gender)) detail += " (ผู้ชายยังใช้รุ่น 1 จนกว่าจะเพิ่มโมเดลรุ่นนี้)";
+    document.getElementById("model-pref-detail").textContent = detail;
+}
+
+export function setScanModel(id) {
+    if (!scanModels.some((m) => m.id === id)) return;
+    appState.scanModel = id;
+    try { localStorage.setItem(MODEL_PREF_KEY, id); } catch { /* private mode: keep in memory only */ }
+    renderModelPicker();
+}
+
+export async function loadScanModels() {
+    try {
+        const list = await apiClient.listModels();
+        if (Array.isArray(list) && list.length) scanModels = list;
+    } catch (err) {
+        console.warn("GET /scans/models failed, showing the default model only:", err);
+        scanModels = FALLBACK_MODELS;
+    }
+    renderModelPicker();
+}
+
+// arrow keys move between the options (radio-group behaviour)
+document.addEventListener("keydown", (e) => {
+    if (!e.target.closest?.("#model-pref") || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
+    e.preventDefault();
+    const ids = scanModels.map((m) => m.id);
+    const i = ids.indexOf(currentScanModel());
+    const next = ids[(i + (e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 1) + ids.length) % ids.length];
+    setScanModel(next);
+    document.querySelector(`#model-pref [data-model="${next}"]`)?.focus();
+});
+document.addEventListener("change", (e) => { if (e.target.id === "gender-pref") renderModelPicker(); });
+
+function modelLabel(version) {
+    return scanModels.find((m) => m.id === version)?.label || version || "";
+}
+
 // ---------- AI analysis (real backend call, full loading/success/error state handling) ----------
 export async function runAI() {
     if (!appState.selectedImg) {
@@ -121,7 +200,8 @@ export async function runAI() {
     spinner.classList.remove("hidden");
     try {
         const gender = document.getElementById("gender-pref").value;
-        const prediction = await apiClient.predictFaceShape(appState.selectedImg, gender);
+        const model = scanModels.length > 1 ? currentScanModel() : null;
+        const prediction = await apiClient.predictFaceShape(appState.selectedImg, gender, model);
         // The backend owns the prediction (shape id + confidence); the rich style
         // recommendations (hair/glasses/jewelry tips) are presentation content that
         // lives in the front-end's local faceData table, keyed by the same shape id.
@@ -135,6 +215,12 @@ export async function runAI() {
         document.getElementById("res-confidence").innerText = prediction.confidence.toFixed(1) + "%";
         document.querySelector(".result-photo")?.style.setProperty("--pct", `${Math.max(0, Math.min(100, prediction.confidence))}%`);
         renderRunnerUp(prediction.ranking);
+        appState.lastModelVersion = prediction.model_version || "";
+        const resModel = document.getElementById("res-model");
+        if (resModel) {
+            resModel.classList.toggle("hidden", !prediction.model_version);
+            document.getElementById("res-model-name").innerText = modelLabel(prediction.model_version);
+        }
         document.getElementById("tip-hair").innerText = styleInfo.hair[gender];
         renderResultHairRecs(styleInfo.id, gender);
         document.getElementById("tip-glass").innerText = styleInfo.glass;

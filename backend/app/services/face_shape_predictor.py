@@ -23,6 +23,12 @@ the K-fold models); with "tta": "flip" each model also sees the mirrored crop
 (test-time augmentation). .tflite files run on LiteRT (ai-edge-litert, ~10 MB,
 no TensorFlow); .keras files still work when TensorFlow is installed.
 
+Model versions ("variants"): besides the default model of each gender, class_names.json may list
+other versions as "<gender>@<variant>" keys, e.g. "female@v6", plus a "variants" table with the
+label the app shows ({"v3": {"label": ...}, "v6": {...}}) and "default_variant". The client picks
+one with the request's `model` field; a version that is missing for that gender falls back to the
+default model, and the response says which model answered.
+
 A gender without its own model - or an old class_names.json without "models" -
 falls back to the original EfficientNetB1 model (face_shape_effnetb1.keras,
 80.4% on the 1,000-image test set, needs TensorFlow) when its files are present.
@@ -74,8 +80,9 @@ class PredictionResult(NamedTuple):
     face_shape: str
     face_shape_name: str
     confidence: float
-    model: str = "default"   # which model answered: "female" / "male" / "default"
+    model: str = "default"   # which model answered: "female" / "male" / "female@v6" / "default"
     ranking: tuple = ()      # every shape, most likely first: ({"face_shape", "face_shape_name", "confidence"}, ...)
+    variant: str = ""        # model version that answered, e.g. "v3" / "v6"
 
 
 def build_ranking(class_names: Sequence[str], probs) -> tuple:
@@ -91,15 +98,17 @@ class ModelUnavailableError(RuntimeError):
 
 class FaceShapePredictor(ABC):
     @abstractmethod
-    def predict(self, image_data_url: str, gender: Optional[str] = None) -> PredictionResult:
-        """Runs face-shape classification on a base64 data-URL image (gender picks the model when there are several)."""
+    def predict(self, image_data_url: str, gender: Optional[str] = None,
+                variant: Optional[str] = None) -> PredictionResult:
+        """Runs face-shape classification on a base64 data-URL image (gender + variant pick the model)."""
         raise NotImplementedError
 
 
 class MockFaceShapePredictor(FaceShapePredictor):
     """Development stand-in: doesn't look at the image, returns a random shape."""
 
-    def predict(self, image_data_url: str, gender: Optional[str] = None) -> PredictionResult:
+    def predict(self, image_data_url: str, gender: Optional[str] = None,
+                variant: Optional[str] = None) -> PredictionResult:
         if not image_data_url or len(image_data_url) < 10:
             raise ValueError("ไม่มีรูปภาพสำหรับส่งวิเคราะห์")
         names = list(FACE_SHAPES.keys())
@@ -107,7 +116,8 @@ class MockFaceShapePredictor(FaceShapePredictor):
         probs = [p / sum(probs) for p in probs]
         ranking = build_ranking(names, probs)
         top = ranking[0]
-        return PredictionResult(top["face_shape"], top["face_shape_name"], top["confidence"], ranking=ranking)
+        return PredictionResult(top["face_shape"], top["face_shape_name"], top["confidence"], ranking=ranking,
+                                variant=variant or "mock")
 
 
 def decode_data_url(image_data_url: str):
@@ -164,22 +174,34 @@ def resolve_model_specs(meta: dict, models_dir: Path = MODELS_DIR) -> dict:
     {"female": spec, "male": spec, "default": spec} for the models actually on disk.
     spec = {"files": (file, ...), "img_size", "preprocess", "tta"}: more than one file = an ensemble
     (probabilities averaged). Genders without their own model use "default".
+    A "models" entry is a file name, a list of file names, or a dict
+    {"files": [...], "preprocess": ..., "img_size": [...], "tta": ...} whose keys override the
+    top-level ones for that gender only (e.g. female on ConvNeXt, male on ResNet50).
     """
     specs = {}
-    img_size = tuple(meta.get("img_size", LEGACY_SPEC["img_size"]))
-    preprocess = meta.get("preprocess", "none")
-    tta = str(meta.get("tta", "")).lower() == "flip"
     env_tta = os.getenv("FACE_SHAPE_TTA", "").strip()
-    if env_tta:
-        tta = tta and env_tta not in ("0", "false", "no", "off")
+    tta_allowed = not env_tta or env_tta not in ("0", "false", "no", "off")
     limit = int(os.getenv("FACE_SHAPE_ENSEMBLE", "0") or 0)
-    for key, files in (meta.get("models") or {}).items():
+
+    def settings(src: dict, base: dict) -> dict:
+        return {
+            "img_size": tuple(src.get("img_size", base["img_size"])),
+            "preprocess": src.get("preprocess", base["preprocess"]),
+            "tta": (str(src["tta"]).lower() == "flip") if "tta" in src else base["tta"],
+        }
+
+    top = settings(meta, {"img_size": LEGACY_SPEC["img_size"], "preprocess": "none", "tta": False})
+    img_size, preprocess, tta = top["img_size"], top["preprocess"], top["tta"] and tta_allowed
+    for key, entry in (meta.get("models") or {}).items():
+        own = settings(entry, top) if isinstance(entry, dict) else top
+        files = entry.get("files", []) if isinstance(entry, dict) else entry
         files = [files] if isinstance(files, str) else list(files)
         files = [f for f in files if model_available(models_dir, f)]
         if limit > 0:
             files = files[:limit]
         if files:
-            specs[key] = {"files": tuple(files), "img_size": img_size, "preprocess": preprocess, "tta": tta}
+            specs[key] = {"files": tuple(files), "img_size": own["img_size"], "preprocess": own["preprocess"],
+                          "tta": own["tta"] and tta_allowed}
     legacy = {"files": (MODEL_FILE,), **LEGACY_SPEC, "tta": False}
     if "default" not in specs:
         complete = all(g in specs for g in GENDERS)
@@ -194,8 +216,47 @@ def resolve_model_specs(meta: dict, models_dir: Path = MODELS_DIR) -> dict:
     return specs
 
 
-def pick_spec_key(specs: dict, gender: Optional[str]) -> str:
+def pick_spec_key(specs: dict, gender: Optional[str], variant: Optional[str] = None) -> str:
+    """Spec key for this request: "<gender>@<variant>" when that version exists, else the gender's default model."""
+    if variant:
+        g = gender if gender in GENDERS else "female"          # no gender: "default" is the female model
+        if f"{g}@{variant}" in specs:
+            return f"{g}@{variant}"
     return gender if gender in specs and gender in GENDERS else "default"
+
+
+def default_variant(meta: dict) -> str:
+    return str(meta.get("default_variant") or "")
+
+
+def variant_of(key: str, meta: dict) -> str:
+    return key.split("@", 1)[1] if "@" in key else default_variant(meta)
+
+
+def list_variants(meta: dict, models_dir: Path = MODELS_DIR) -> list:
+    """
+    The model versions the app can offer: [{"id", "label", "detail", "genders", "default"}].
+    A version is listed when at least one gender has its files on disk; "genders" says which ones
+    (the other gender then falls back to the default model).
+    """
+    table = meta.get("variants") or {}
+    models = meta.get("models") or {}
+    default = default_variant(meta)
+    out = []
+    for vid, info in table.items():
+        genders = []
+        for g in GENDERS:
+            entry = models.get(g if vid == default else f"{g}@{vid}")
+            if entry is None:
+                continue
+            files = entry.get("files", []) if isinstance(entry, dict) else entry
+            files = [files] if isinstance(files, str) else list(files)
+            if files and all(model_available(models_dir, f) for f in files):
+                genders.append(g)
+        if genders:
+            out.append({"id": vid, "label": info.get("label", vid), "detail": info.get("detail", ""),
+                        "genders": genders, "default": vid == default})
+    return out
 
 
 def apply_preprocess(arr, name: str):
@@ -302,6 +363,7 @@ class KerasFaceShapePredictor(FaceShapePredictor):
         self._class_names = None
         self._crop_params = None
         self._specs = {}
+        self._meta = {}
         self._models = {}           # spec key -> list of loaded models (most recently used last)
         # each gender model (its whole ensemble) costs RAM; Render free has 512 MB
         self._max_loaded = max_loaded or int(os.getenv("FACE_SHAPE_MAX_MODELS", "2"))
@@ -309,7 +371,7 @@ class KerasFaceShapePredictor(FaceShapePredictor):
     def warm_up(self) -> None:
         with self._lock:
             self._prepare()
-            for key in list(self._specs)[: self._max_loaded]:
+            for key in [k for k in self._specs if "@" not in k][: self._max_loaded]:   # default versions first
                 self._get_model(key)
 
     def _prepare(self) -> None:
@@ -318,6 +380,7 @@ class KerasFaceShapePredictor(FaceShapePredictor):
         from app.services import face_crop
 
         meta = json.loads((self.models_dir / CLASS_FILE).read_text(encoding="utf-8"))
+        self._meta = meta
         self._class_names = meta["class_names"]
         self._specs = resolve_model_specs(meta, self.models_dir)
         params = (meta.get("face_crop") or {}).get("params") or {}
@@ -379,13 +442,14 @@ class KerasFaceShapePredictor(FaceShapePredictor):
             apply_preprocess(arr, spec["preprocess"])          # raises ModelUnavailableError
         return image_ops.prepare_batch(arr, spec["img_size"], spec["preprocess"], spec["tta"])
 
-    def predict(self, image_data_url: str, gender: Optional[str] = None) -> PredictionResult:
+    def predict(self, image_data_url: str, gender: Optional[str] = None,
+                variant: Optional[str] = None) -> PredictionResult:
         import numpy as np
 
         image = decode_data_url(image_data_url)
         with self._lock:
             self._prepare()
-            key = pick_spec_key(self._specs, gender)
+            key = pick_spec_key(self._specs, gender, variant)
             spec = self._specs[key]
             models = self._get_model(key)
             batch = self._preprocess(image, spec)
@@ -398,6 +462,7 @@ class KerasFaceShapePredictor(FaceShapePredictor):
             confidence=top["confidence"],
             model=key,
             ranking=ranking,
+            variant=variant_of(key, self._meta),
         )
 
 
@@ -417,6 +482,15 @@ def _make_predictor() -> FaceShapePredictor:
 
 
 _predictor_instance = _make_predictor()
+
+
+def available_variants(models_dir: Path = MODELS_DIR) -> list:
+    """For GET /scans/models (reads class_names.json only; loads no model)."""
+    try:
+        meta = json.loads((Path(models_dir) / CLASS_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return list_variants(meta, Path(models_dir))
 
 
 def get_predictor() -> FaceShapePredictor:
