@@ -125,17 +125,18 @@ Auth ใช้ `Authorization: Bearer <token>` header หลัง login (มา
 ## โมเดลวิเคราะห์รูปหน้า (`models/`)
 
 - **2 รุ่นให้ผู้ใช้เลือก** (`GET /scans/models` บอกว่ามีรุ่นไหนบ้าง, `POST /scans/predict` ส่ง `"model": "v3"|"v6"`)
-  - "Core" `v3` (ค่าเริ่มต้น): `face_shape_<female|male>_fold1..3.tflite.part*` — ResNet50 แยกเพศ split สุ่มรายรูป
-  - "Vision" `v6`: `face_shape_<female|male>_v6_fold1..3.tflite.part*` — ConvNeXt-Tiny แบ่งชุดเทรน/ทดสอบตามบุคคล
-    (เพศที่ยังไม่มีไฟล์ v6 จะใช้ "Core" แทน — หน้าเว็บแสดงการ์ดเป็นสีเทาพร้อมบอกเหตุผล และ response บอก `model_version` ที่ตอบจริง)
+  - "Vision" `v6` (ค่าเริ่มต้น ตั้งแต่ 10 พ.ย.): `face_shape_<female|male>_v6_fold*.tflite.part*` — ConvNeXt-Tiny แบ่งชุดเทรน/ทดสอบตามบุคคล
+    (หญิง 3 fold, ชาย fold 1+3 — fold 2 ถูกตัดด้วยกฎ val)
+  - "Core" `v3`: `face_shape_<female|male>_fold1..3.tflite.part*` — ResNet50 แยกเพศ split สุ่มรายรูป (คีย์ `<gender>@v3`)
+    (เพศที่ไม่มีไฟล์ของรุ่นที่ขอจะใช้รุ่นค่าเริ่มต้นแทน — หน้าเว็บแสดงการ์ดเป็นสีเทาพร้อมบอกเหตุผล และ response บอก `model_version` ที่ตอบจริง)
   แปลงเป็น TFLite (น้ำหนัก int8) ตอนรันครั้งแรก backend จะรวม part เป็นไฟล์และเช็ก SHA-256 ให้เอง
 - ทายแบบ **ensemble 3 fold + TTA (กลับซ้าย-ขวา)**: แต่ละรูปผ่านโมเดล 3 ตัว x 2 ภาพ แล้วเฉลี่ยความน่าจะเป็น
-  ("Core" บน split เดิม: หญิง 80.4% / 91.4%, ชาย 85.9% / 97.0% — มีคนซ้ำข้ามชุด; "Vision" กับคนที่ไม่เคยเห็น: หญิง 60.8% / 81.9%) — API ส่ง `ranking` ทุกทรงเรียงจากมากไปน้อย
+  ("Core" บน split เดิม: หญิง 80.4% / 91.4%, ชาย 85.9% / 97.0% — มีคนซ้ำข้ามชุด; "Vision" กับคนที่ไม่เคยเห็น: หญิง 60.8% / 81.9%, ชาย 62.7% / 82.4%; ResNet50 สูตร Core เทรนแบบแบ่งตามบุคคล ชาย 37.8% / 68.8%) — API ส่ง `ranking` ทุกทรงเรียงจากมากไปน้อย
   หน้าเว็บแสดงทรงที่ใกล้เคียงรองลงมาด้วย
 - รันบน **LiteRT** (`ai-edge-litert`) ไม่ต้องติดตั้ง TensorFlow — RAM น้อยพอสำหรับ Render ฟรี (512 MB)
 - `class_names.json` — ลำดับคลาส ไฟล์โมเดลของแต่ละเพศ (`models`), `"tta": "flip"` และค่าการครอปหน้าที่ใช้ตอนเทรน (ต้องตรงกับ `app/services/face_crop.py`)
   — แต่ละเพศใน `models` เป็นรายชื่อไฟล์ หรือ `{"files": [...], "preprocess": "none"}` เพื่อตั้งค่าเฉพาะเพศนั้น
-  ("Vision" ConvNeXt มี normalization ในโมเดลเอง = `"none"`, "Core" ResNet50 = `"resnet50"` ตามค่าบนสุด)
+  ("Vision" ConvNeXt มี normalization ในโมเดลเอง = `"none"` ตามค่าบนสุด, "Core" ResNet50 ตั้ง `"resnet50"` ในคีย์ `<gender>@v3`)
 - `app/services/image_ops.py` — resize/preprocess แบบ NumPy ที่ให้ค่าเท่ากับ TensorFlow ตอนเทรน (convert_tflite.py ตรวจให้)
 - `face_landmarker.task` — โมเดลหาใบหน้าของ MediaPipe (~3.6 MB) ดาวน์โหลดอัตโนมัติครั้งแรก ต้องต่ออินเทอร์เน็ต
 - โหลดโมเดลเบื้องหลังตอนเปิดเซิร์ฟเวอร์ — log `Face-shape model ready` = พร้อมใช้

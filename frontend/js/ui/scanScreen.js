@@ -112,17 +112,17 @@ export function stopCamera() {
 }
 
 // ---------- Model version picker ----------
-// The server can hold more than one trained model (v3 ResNet50 = "Core", v6 ConvNeXt trained on a
-// person-disjoint split = "Vision"). GET /scans/models says which ones exist and for which genders;
+// The server can hold more than one trained model (v6 ConvNeXt trained on a person-disjoint split =
+// "Vision", the default; v3 ResNet50 = "Core"). GET /scans/models says which ones exist and for which genders;
 // the choice is remembered per browser. A model that has no file for the chosen gender is shown
 // disabled and the default model is used instead.
 const MODEL_PREF_KEY = "ushape.scanModel";
 const GENDER_TH = { male: "ผู้ชาย", female: "ผู้หญิง" };
 const FALLBACK_MODELS = [
-    { id: "v3", label: "Core", badge: "แนะนำ", tech: "ResNet50",
-      detail: "โมเดลหลักของ uShape ใช้งานมาตั้งแต่แรก รองรับทั้งผู้ชายและผู้หญิง", genders: ["female", "male"], default: true },
-    { id: "v6", label: "Vision", badge: "ทดลอง", tech: "ConvNeXt",
-      detail: "โมเดลใหม่ที่ฝึกให้อ่านโครงหน้าของคนที่ไม่เคยเห็นมาก่อน ผลอาจต่างจาก Core ลองเทียบกันได้", genders: ["female", "male"], default: false },
+    { id: "v6", label: "Vision", badge: "แนะนำ", tech: "ConvNeXt",
+      detail: "โมเดลหลักของ uShape ฝึกให้อ่านโครงหน้าของคนที่ไม่เคยเห็นมาก่อน รองรับทั้งผู้ชายและผู้หญิง", genders: ["female", "male"], default: true },
+    { id: "v3", label: "Core", badge: "รุ่นแรก", tech: "ResNet50",
+      detail: "โมเดลรุ่นแรกของ uShape เก็บไว้ให้ลองเทียบผลกับ Vision", genders: ["female", "male"], default: false },
 ];
 // Shown until GET /scans/models answers (Render's free server can take ~1 min to wake up), so the
 // picker never disappears; the server's list replaces it, and the result line says which model answered.
