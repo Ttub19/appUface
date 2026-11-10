@@ -37,7 +37,6 @@
     "male@v6": {
       "files": [
         "face_shape_male_v6_fold1.tflite",
-        "face_shape_male_v6_fold2.tflite",
         "face_shape_male_v6_fold3.tflite"
       ],
       "preprocess": "none",
@@ -66,6 +65,17 @@
         "macro_f1": 0.5895,
         "n_test_sources": 602,
         "n_test_people": 97
+      },
+      "male": {
+        "ensemble_tta_top1": 0.6267,
+        "ensemble_tta_top2": 0.8235,
+        "macro_f1": 0.4896,
+        "n_test_images": 442,
+        "folds": [
+          1,
+          3
+        ],
+        "fold_rule": "เก็บ fold ที่ val ไม่ต่ำกว่าตัวดีสุดเกิน 0.05 (fold2 val 0.49 ถูกตัด)"
       }
     }
   },

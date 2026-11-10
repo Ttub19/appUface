@@ -122,7 +122,7 @@ const FALLBACK_MODELS = [
     { id: "v3", label: "Core", badge: "แนะนำ", tech: "ResNet50",
       detail: "โมเดลหลักของ uShape ใช้งานมาตั้งแต่แรก รองรับทั้งผู้ชายและผู้หญิง", genders: ["female", "male"], default: true },
     { id: "v6", label: "Vision", badge: "ทดลอง", tech: "ConvNeXt",
-      detail: "โมเดลใหม่ที่ฝึกให้อ่านโครงหน้าของคนที่ไม่เคยเห็นมาก่อน ผลอาจต่างจาก Core ลองเทียบกันได้", genders: ["female"], default: false },
+      detail: "โมเดลใหม่ที่ฝึกให้อ่านโครงหน้าของคนที่ไม่เคยเห็นมาก่อน ผลอาจต่างจาก Core ลองเทียบกันได้", genders: ["female", "male"], default: false },
 ];
 // Shown until GET /scans/models answers (Render's free server can take ~1 min to wake up), so the
 // picker never disappears; the server's list replaces it, and the result line says which model answered.
