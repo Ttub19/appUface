@@ -1,0 +1,140 @@
+<!-- ============ HOME / SCAN SCREEN ============ -->
+<div id="screen-main" class="page home">
+    <section class="home-intro">
+        <div>
+            <p class="home-kicker">สวัสดี <span data-user-name>คุณ</span></p>
+            <h1 class="home-title">รูปหน้าแบบไหน<br><span>เหมาะกับทรงผมแบบไหน</span></h1>
+            <p class="home-lede">ถ่ายหรืออัปโหลดรูปหน้าตรงหนึ่งรูป ระบบจะวัดสัดส่วนจาก 468 จุดบนใบหน้า แล้วบอกว่าคุณมีรูปหน้าแบบไหน พร้อมทรงผม แว่น และเครื่องประดับที่เข้ากัน</p>
+
+            <ol class="home-steps">
+                <li><b>01</b><div><strong>เลือกรูปหน้าตรง</strong><span>เปิดหน้าผาก ไม่เอียงศีรษะ แสงสม่ำเสมอ</span></div></li>
+                <li><b>02</b><div><strong>ระบบอ่านโครงหน้า</strong><span>ใช้เวลาไม่ถึงนาที รูปถูกส่งไปวิเคราะห์แต่ไม่ถูกเก็บ จนกว่าคุณกดบันทึกผล</span></div></li>
+                <li><b>03</b><div><strong>ลองทรงที่แนะนำ แล้วจองช่าง</strong><span>สวมทรงใหม่บนรูปของคุณ ก่อนตัดจริง</span></div></li>
+            </ol>
+
+            <div class="scan-options">
+                <label class="home-pref" for="gender-pref">
+                    ให้คำแนะนำแบบ
+                    <select id="gender-pref" class="select">
+                        <option value="male">ผู้ชาย</option>
+                        <option value="female">ผู้หญิง</option>
+                    </select>
+                </label>
+                <div class="model-pref hidden" id="model-pref-wrap">
+                    <div class="model-pref-head">
+                        <span class="model-pref-title" id="model-pref-title">เลือกโมเดลวิเคราะห์</span>
+                        <span class="model-pref-hint">เปลี่ยนได้ทุกครั้งก่อนกดวิเคราะห์</span>
+                    </div>
+                    <div class="model-cards" id="model-pref" role="radiogroup" aria-labelledby="model-pref-title"></div>
+                </div>
+            </div>
+
+            <div class="home-actions">
+                <button type="button" onclick="document.getElementById('file-input').click()" class="btn btn-secondary btn-lg"><i class="fa-regular fa-image"></i>เลือกรูป</button>
+                <button type="button" onclick="startCamera()" class="btn btn-secondary btn-lg"><i class="fa-solid fa-camera"></i>ถ่ายรูป</button>
+                <button type="button" onclick="runAI()" class="btn btn-primary btn-lg">วิเคราะห์รูปหน้า</button>
+                <input type="file" id="file-input" class="hidden" accept="image/*" onchange="handleFileUpload(event)">
+            </div>
+        </div>
+
+        <figure class="home-figure">
+            <div class="home-frame">
+                <span class="home-figure-tag">ตัวอย่าง</span>
+                <div id="loading-spinner" class="hidden processing-overlay">
+                    <div class="scan-line"></div>
+                    <div class="spinner"></div>
+                    <span>กำลังอ่านโครงหน้า…</span>
+                </div>
+
+                <div id="preview-placeholder" class="absolute inset-0">
+                    <img src="assets/images/scan-portrait.jpg?v=20261106" alt="ตัวอย่างรูปหน้าตรงที่เหมาะสำหรับวิเคราะห์">
+                </div>
+
+                <video id="camera-video" class="hidden absolute inset-0 w-full h-full object-cover is-mirrored" autoplay playsinline muted></video>
+                <div id="camera-guide" class="hidden camera-guide" aria-hidden="true">
+                    <svg viewBox="0 0 100 125" preserveAspectRatio="xMidYMid meet"><ellipse cx="50" cy="56" rx="27" ry="36"/><line x1="50" y1="14" x2="50" y2="22"/></svg>
+                    <span><i class="fa-solid fa-face-smile"></i>ให้หน้าอยู่ในวงรี มองตรง ไม่เอียงศีรษะ</span>
+                </div>
+                <canvas id="camera-canvas" class="hidden"></canvas>
+
+                <div id="camera-controls" class="hidden stage-toolbar is-floating">
+                    <button onclick="capturePhoto()" class="btn btn-primary"><i class="fa-solid fa-camera"></i>ถ่ายภาพ</button>
+                    <button onclick="stopCamera()" class="btn btn-dark">ยกเลิก</button>
+                </div>
+
+                <div id="preview-container" class="hidden absolute inset-0">
+                    <img id="main-preview" class="w-full h-full object-cover" alt="รูปที่คุณเลือกสำหรับวิเคราะห์">
+                </div>
+            </div>
+            <figcaption>
+                <span>รูปที่คุณเลือกจะแสดงตรงนี้</span>
+                <span class="home-credit">ภาพตัวอย่างจากผู้พัฒนา</span>
+            </figcaption>
+        </figure>
+    </section>
+
+    <section>
+        <div class="home-section-head">
+            <h2>5 รูปหน้าที่ระบบแยกได้</h2>
+            <button type="button" onclick="navigateTo('screen-guide')">อ่านคู่มือ <i class="fa-solid fa-arrow-right text-xs"></i></button>
+        </div>
+        <div class="shape-strip">
+            <button type="button" class="shape-item" onclick="openGuideShape('oval')">
+                <img class="shape-photo" src="assets/faceshapes/oval.png" alt="ตัวอย่างหน้ารูปไข่" loading="lazy">
+                <strong>รูปไข่</strong><span>Oval</span>
+            </button>
+            <button type="button" class="shape-item" onclick="openGuideShape('round')">
+                <img class="shape-photo" src="assets/faceshapes/round.png" alt="ตัวอย่างหน้ากลม" loading="lazy">
+                <strong>กลม</strong><span>Round</span>
+            </button>
+            <button type="button" class="shape-item" onclick="openGuideShape('square')">
+                <img class="shape-photo" src="assets/faceshapes/square.png" alt="ตัวอย่างหน้าเหลี่ยม" loading="lazy">
+                <strong>เหลี่ยม</strong><span>Square</span>
+            </button>
+            <button type="button" class="shape-item" onclick="openGuideShape('heart')">
+                <img class="shape-photo" src="assets/faceshapes/heart.png" alt="ตัวอย่างหน้าหัวใจ" loading="lazy">
+                <strong>หัวใจ</strong><span>Heart</span>
+            </button>
+            <button type="button" class="shape-item" onclick="openGuideShape('oblong')">
+                <img class="shape-photo" src="assets/faceshapes/oblong.png" alt="ตัวอย่างหน้ายาว" loading="lazy">
+                <strong>ยาว</strong><span>Oblong</span>
+            </button>
+        </div>
+    </section>
+
+    <section>
+        <div class="home-section-head mb-6">
+            <h2>ลองก่อนตัดจริง</h2>
+        </div>
+        <div class="home-tools">
+            <button type="button" onclick="navigateTo('screen-hairstyle')" data-mirror="nav-hairstyle" class="home-feature">
+                <div class="home-feature-img"><img src="assets/images/tile-hair.jpg?v=20261106" alt="ช่างทำผมกำลังเป่าผมให้ลูกค้าในร้าน"></div>
+                <h3>ลองทรงผมบนรูปของคุณ</h3>
+                <p>uShape กลบผมเดิมในรูปของคุณแล้วสวมทรงใหม่ เปลี่ยนทรงและสีเทียบกันก่อนตัดสินใจ</p>
+                <span class="more">เปิดห้องลองทรงผม <i class="fa-solid fa-arrow-right text-xs"></i></span>
+            </button>
+            <div class="index-list">
+                <button type="button" onclick="navigateTo('screen-glasses')" data-mirror="nav-glasses" class="index-row">
+                    <i class="fa-solid fa-glasses"></i>
+                    <div><strong>ลองแว่นตา</strong><span>28 ทรง ผ่านกล้อง ปรับขนาดตามความกว้างหน้า</span></div>
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+                <button type="button" onclick="navigateTo('screen-golden')" data-mirror="nav-golden" class="index-row">
+                    <i class="fa-solid fa-ruler-combined"></i>
+                    <div><strong>วัดสัดส่วนใบหน้า</strong><span>สัดส่วนสามส่วนของใบหน้าและความสมมาตร</span></div>
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+                <button type="button" onclick="navigateTo('screen-booking')" data-mirror="nav-booking" class="index-row">
+                    <i class="fa-regular fa-calendar"></i>
+                    <div><strong>จองคิวช่างใกล้คุณ</strong><span>ดูความถนัดของช่าง เลือกเวลา และแชทถามร้าน</span></div>
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+                <button type="button" onclick="navigateTo('screen-favorites')" data-mirror="nav-favorites" class="index-row">
+                    <i class="fa-regular fa-heart"></i>
+                    <div><strong>รายการโปรด</strong><span>ผลวิเคราะห์ที่คุณเก็บไว้</span></div>
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+    </section>
+</div>

@@ -1,0 +1,79 @@
+<!-- ============ GOLDEN RATIO ANALYSIS SCREEN ============ -->
+<div id="screen-golden" class="hidden page">
+    <header class="page-header">
+        <div class="page-header-main">
+            <button onclick="navigateTo('screen-main')" aria-label="กลับหน้าแรก" class="icon-btn mt-1"><i class="fa-solid fa-arrow-left"></i></button>
+            <div>
+                <h2 class="page-title">วัดสัดส่วนใบหน้า</h2>
+                <p class="page-sub">วัดสัดส่วนใบหน้าแบบสดจาก 468 จุดบนใบหน้า เทียบกับอัตราส่วนทองคำ 1.618</p>
+            </div>
+        </div>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+        <div class="lg:col-span-2 card p-3">
+            <div class="ar-stage">
+                <div id="golden-loading" class="hidden processing-overlay is-dark">
+                    <div class="spinner"></div>
+                    <span>กำลังขออนุญาตใช้กล้อง…</span>
+                </div>
+                <div id="golden-placeholder" class="stage-placeholder">
+                    <span class="stage-placeholder-icon"><i class="fa-solid fa-ruler-combined"></i></span>
+                    <p>มองตรงเข้ากล้องในที่ที่มีแสงพอ<br>แล้วกด "เริ่มวัดสัดส่วน"</p>
+                </div>
+                <video id="golden-video" class="hidden" autoplay playsinline muted></video>
+                <canvas id="golden-canvas" class="hidden"></canvas>
+                <div id="golden-face-hint" class="hidden stage-hint">
+                    <span><i class="fa-solid fa-triangle-exclamation"></i>ยังไม่เห็นใบหน้า ลองขยับให้อยู่กลางภาพ</span>
+                </div>
+            </div>
+            <div class="stage-toolbar mb-1">
+                <button id="golden-open-btn" onclick="startGoldenSession()" class="btn btn-primary"><i class="fa-solid fa-camera"></i>เริ่มวัดสัดส่วน</button>
+                <button id="golden-save-btn" onclick="saveGoldenRatioResult()" class="hidden btn btn-success"><i class="fa-regular fa-bookmark"></i>บันทึกผล</button>
+                <button id="golden-stop-btn" onclick="stopGoldenSession()" class="hidden btn btn-secondary">หยุด</button>
+            </div>
+        </div>
+
+        <div class="lg:col-span-1 space-y-4">
+            <div class="card card-pad text-center">
+                <p class="text-sm text-[color:var(--ink-3)]">คะแนนรวม</p>
+                <div id="golden-score-ring" class="score-ring mt-3">
+                    <div>
+                        <h3 id="golden-overall-score" class="text-[42px] font-medium leading-none tabular-nums">--</h3>
+                        <span class="text-xs text-[color:var(--ink-4)] mt-1">จาก 100</span>
+                    </div>
+                </div>
+                <p id="golden-overall-label" class="text-[15px] text-[color:var(--ink-2)] mt-4">รอข้อมูลจากกล้อง</p>
+            </div>
+
+            <div class="card card-pad space-y-4">
+                <h4 class="card-title">สัดส่วนสามส่วนของใบหน้า</h4>
+                <div class="metric">
+                    <div class="metric-row"><span>หน้าผาก</span><b id="golden-third-1">--%</b></div>
+                    <div class="ratio-track"><div id="golden-bar-1" class="ratio-fill" style="width:0%"></div></div>
+                </div>
+                <div class="metric">
+                    <div class="metric-row"><span>คิ้ว–ปลายจมูก</span><b id="golden-third-2">--%</b></div>
+                    <div class="ratio-track"><div id="golden-bar-2" class="ratio-fill" style="width:0%"></div></div>
+                </div>
+                <div class="metric">
+                    <div class="metric-row"><span>ปลายจมูก–คาง</span><b id="golden-third-3">--%</b></div>
+                    <div class="ratio-track"><div id="golden-bar-3" class="ratio-fill" style="width:0%"></div></div>
+                </div>
+            </div>
+
+            <div class="card card-pad space-y-4">
+                <h4 class="card-title">อัตราส่วนและความสมมาตร</h4>
+                <div class="metric">
+                    <div class="metric-row"><span>ยาว : กว้าง</span><b id="golden-ratio-value">-- : 1 <span class="text-slate-400">(1.618)</span></b></div>
+                    <div class="ratio-track"><div id="golden-bar-ratio" class="ratio-fill" style="width:0%"></div></div>
+                </div>
+                <div class="metric">
+                    <div class="metric-row"><span>สมมาตรซ้าย–ขวา</span><b id="golden-symmetry-value">--%</b></div>
+                    <div class="ratio-track"><div id="golden-bar-symmetry" class="ratio-fill" style="width:0%"></div></div>
+                </div>
+                <p class="text-xs leading-relaxed text-[color:var(--ink-4)]">เป็นการวัดเชิงเรขาคณิตเพื่อความสนุก ไม่ใช่คะแนนความงามหรือการวินิจฉัยทางการแพทย์</p>
+            </div>
+        </div>
+    </div>
+</div>

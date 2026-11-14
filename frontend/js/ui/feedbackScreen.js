@@ -19,9 +19,9 @@ const STATUS = Object.freeze({
     resolved: ["ดำเนินการแล้ว", "is-resolved"],
 });
 const SCREEN_NAMES = Object.freeze({
-    "screen-main": "หน้าแรก", "screen-result": "ผลวิเคราะห์", "screen-guide": "คู่มือรูปหน้า", "screen-golden": "Golden Ratio",
+    "screen-main": "หน้าแรก", "screen-result": "ผลวิเคราะห์", "screen-guide": "คู่มือรูปหน้า", "screen-golden": "วัดสัดส่วนใบหน้า",
     "screen-hairstyle": "ลองทรงผม", "screen-glasses": "ลองแว่นตา", "screen-booking": "จองคิว", "screen-favorites": "รายการโปรด",
-    "screen-history": "ประวัติการสแกน", "screen-profile": "โปรไฟล์", "screen-admin": "Dashboard",
+    "screen-history": "ประวัติการสแกน", "screen-profile": "โปรไฟล์", "screen-admin": "แดชบอร์ดแอดมิน",
 });
 
 let fromScreen = null;

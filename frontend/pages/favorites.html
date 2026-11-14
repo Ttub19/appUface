@@ -1,0 +1,16 @@
+<!-- ============ FAVORITES SCREEN ============ -->
+<div id="screen-favorites" class="hidden page">
+    <header class="page-header">
+        <div>
+            <h2 class="page-title">รายการโปรด</h2>
+            <p class="page-sub">ผลวิเคราะห์ที่คุณกดหัวใจเก็บไว้</p>
+        </div>
+    </header>
+    <div id="favorites-grid" class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4"></div>
+    <div id="favorites-empty" class="card empty-state">
+        <span class="empty-state-icon"><i class="fa-regular fa-heart"></i></span>
+        <strong>ยังไม่มีรายการโปรด</strong>
+        <span>กดหัวใจที่หน้าผลวิเคราะห์ เพื่อเก็บลุคที่ชอบไว้ดูภายหลัง</span>
+        <button onclick="navigateTo('screen-main')" class="btn btn-soft btn-sm mt-3">เริ่มวิเคราะห์รูปหน้า</button>
+    </div>
+</div>

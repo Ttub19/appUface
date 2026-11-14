@@ -44,7 +44,7 @@ export async function startGoldenSession() {
         stopBtn.classList.remove("hidden");
         document.getElementById("golden-save-btn").classList.remove("hidden");
         setGoldenSaveEnabled(false);
-        showToast("เปิดกล้องสำเร็จ กำลังวิเคราะห์สัดส่วนใบหน้าแบบเรียลไทม์", "success");
+        showToast("เปิดกล้องแล้ว หันหน้าตรงค้างไว้สักครู่", "success");
     } catch (err) {
         console.error(err);
         goldenSession = null;
@@ -154,7 +154,7 @@ export async function saveGoldenRatioResult() {
             symmetry_score: lastMetrics.symmetryScore,
             overall_score: lastMetrics.overall,
         });
-        showToast("บันทึกผลวิเคราะห์ Golden Ratio สำเร็จ", "success");
+        showToast("บันทึกผลวัดสัดส่วนใบหน้าแล้ว", "success");
     } catch (err) {
         console.error(err);
         showToast(err.message || "บันทึกผลวิเคราะห์ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง", "error");

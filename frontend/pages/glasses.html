@@ -1,0 +1,65 @@
+<!-- ============ GLASSES TRY-ON SCREEN ============ -->
+<div id="screen-glasses" class="hidden page tryon-screen">
+    <header class="page-header">
+        <div class="page-header-main">
+            <button onclick="navigateTo('screen-main')" aria-label="กลับหน้าแรก" class="icon-btn mt-1"><i class="fa-solid fa-arrow-left"></i></button>
+            <div>
+                <h2 class="page-title">ลองแว่นตา</h2>
+                <p class="page-sub">เปิดกล้องแล้วหันหน้าตรง แว่นจะขยับ หมุน และปรับขนาดตามใบหน้าคุณ</p>
+            </div>
+        </div>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+        <div class="lg:col-span-2 card p-3 tryon-stage-card">
+            <div class="ar-stage">
+                <div id="glasses-loading" class="hidden processing-overlay is-dark">
+                    <div class="spinner"></div>
+                    <span>กำลังขออนุญาตใช้กล้อง…</span>
+                </div>
+
+                <div id="glasses-placeholder" class="stage-placeholder">
+                    <span class="stage-placeholder-icon"><i class="fa-solid fa-glasses"></i></span>
+                    <p>เลือกทรงแว่นที่ชอบ<br>แล้วกด "เปิดกล้องลองแว่น"</p>
+                </div>
+
+                <video id="glasses-video" class="hidden" autoplay playsinline muted></video>
+                <svg id="glasses-overlay" class="hidden" viewBox="0 0 1280 720" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+                    <polygon id="glasses-temple" points="" opacity="0" stroke="rgba(0,0,0,.25)" stroke-width="1" stroke-linejoin="round"></polygon>
+                    <g id="glasses-shape-group" class="ar-tracked-group" style="opacity:0">
+                        <g id="glasses-shape-inner"></g>
+                    </g>
+                </svg>
+                <div id="glasses-face-hint" class="hidden stage-hint">
+                    <span><i class="fa-solid fa-triangle-exclamation"></i>ยังไม่เห็นใบหน้า ลองขยับให้อยู่กลางภาพ</span>
+                </div>
+
+                <canvas id="glasses-canvas" class="hidden"></canvas>
+                <div id="glasses-preview-container" class="hidden absolute inset-0">
+                    <img id="glasses-preview" class="w-full h-full object-cover" alt="ภาพตัวอย่างหลังสวมแว่น">
+                </div>
+            </div>
+            <div id="glasses-controls" class="hidden stage-toolbar mb-1">
+                <div class="tryon-size-control">
+                    <label for="glasses-size">ขนาดแว่น</label>
+                    <input id="glasses-size" type="range" min="75" max="125" step="1" value="100" oninput="setGlassesSize(this.value)" aria-describedby="glasses-size-value">
+                    <output id="glasses-size-value" for="glasses-size">พอดีหน้า</output>
+                    <button type="button" onclick="setGlassesSize(100)" class="btn btn-ghost btn-sm">รีเซ็ต</button>
+                </div>
+                <button onclick="captureGlassesPhoto()" class="btn btn-primary"><i class="fa-solid fa-camera"></i>ถ่ายรูป</button>
+                <button onclick="stopGlassesSession()" class="btn btn-secondary">ปิดกล้อง</button>
+            </div>
+            <button id="glasses-open-btn" onclick="startGlassesSession()" class="btn btn-primary btn-lg btn-block tryon-start-btn">
+                <i class="fa-solid fa-camera"></i>เปิดกล้องลองแว่น
+            </button>
+        </div>
+
+        <div class="lg:col-span-1 tryon-panel">
+            <div class="card card-pad space-y-4">
+                <h4 class="card-title">เลือกทรงแว่น</h4>
+                <div id="glasses-category-filter" class="tryon-filter" role="toolbar" aria-label="หมวดหมู่แว่น"></div>
+                <div id="glasses-selector" class="option-list rail-mobile tryon-list" aria-label="รายการแว่น"></div>
+            </div>
+        </div>
+    </div>
+</div>

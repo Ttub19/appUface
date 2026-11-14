@@ -1,0 +1,78 @@
+<!-- ============ RESULT SCREEN ============ -->
+<div id="screen-result" class="hidden page">
+    <header class="page-header">
+        <div class="page-header-main">
+            <button onclick="navigateTo('screen-main')" aria-label="กลับหน้าแรก" class="icon-btn"><i class="fa-solid fa-arrow-left"></i></button>
+            <h2 class="page-title self-center">ผลวิเคราะห์ของคุณ</h2>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="shareResult()" class="btn btn-secondary btn-sm"><i class="fa-solid fa-arrow-up-from-bracket"></i>แชร์</button>
+            <button id="btn-export" onclick="exportCSV()" class="btn btn-secondary btn-sm"><i class="fa-solid fa-file-csv"></i>CSV</button>
+        </div>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div class="lg:col-span-1 space-y-5">
+            <div class="card overflow-hidden relative">
+                <button onclick="toggleFavorite()" id="btn-favorite" aria-label="บันทึกเป็นรายการโปรด" class="icon-btn absolute top-4 right-4 z-10 text-slate-400">
+                    <i class="fa-regular fa-heart"></i>
+                </button>
+                <div class="result-hero">
+                    <div class="result-photo"><img id="res-photo" alt="ภาพใบหน้าที่วิเคราะห์"></div>
+                    <p class="text-sm text-[color:var(--ink-3)] mt-4">รูปหน้าของคุณคือ</p>
+                    <h3 id="res-shape" class="text-[28px] font-medium tracking-tight">-</h3>
+                    <span class="chip chip-accent mt-2">ตรงกัน <span id="res-confidence">92%</span></span>
+                    <p id="res-second" class="result-second hidden">ใกล้เคียงรองลงมา <strong id="res-second-name">-</strong> <span id="res-second-confidence"></span></p>
+                    <p id="res-model" class="result-model hidden">วิเคราะห์ด้วยโมเดล <strong id="res-model-name">-</strong></p>
+                </div>
+            </div>
+
+            <div class="card p-2">
+                <button onclick="navigateTo('screen-hairstyle')" data-mirror="nav-hairstyle" class="action-row">
+                    <span class="tile-icon"><i class="fa-solid fa-scissors"></i></span>
+                    <div><strong>ลองทรงผมที่แนะนำ</strong><span>ใช้รูปเดียวกับที่วิเคราะห์ ไม่ต้องอัปโหลดใหม่</span></div>
+                    <i class="fa-solid fa-chevron-right"></i>
+                </button>
+                <button onclick="navigateTo('screen-glasses')" data-mirror="nav-glasses" class="action-row">
+                    <span class="tile-icon"><i class="fa-solid fa-glasses"></i></span>
+                    <div><strong>ลองแว่นตา</strong><span>เปิดกล้อง แว่นขยับตามดวงตา</span></div>
+                    <i class="fa-solid fa-chevron-right"></i>
+                </button>
+                <button onclick="navigateTo('screen-booking')" data-mirror="nav-booking" class="action-row">
+                    <span class="tile-icon"><i class="fa-regular fa-calendar"></i></span>
+                    <div><strong>จองช่างตัดทรงนี้</strong><span>ค้นหาร้านที่ถนัดสไตล์ที่คุณชอบ</span></div>
+                    <i class="fa-solid fa-chevron-right"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="lg:col-span-2 space-y-5">
+            <section class="card card-pad hair-recs-card" aria-labelledby="hair-recs-title">
+                <div class="hair-recs-head">
+                    <h4 id="hair-recs-title"><span class="tile-icon"><i class="fa-solid fa-scissors"></i></span>ทรงผมที่แนะนำสำหรับคุณ</h4>
+                    <button type="button" onclick="navigateTo('screen-hairstyle')" data-mirror="nav-hairstyle" class="btn btn-ghost btn-sm">ดูทรงทั้งหมด<i class="fa-solid fa-arrow-right text-xs"></i></button>
+                </div>
+                <p id="tip-hair" class="hair-recs-tip">-</p>
+                <div id="res-hair-recs" class="hair-recs-grid"></div>
+            </section>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="card tip-card">
+                    <h4><span class="tile-icon"><i class="fa-solid fa-glasses"></i></span>แว่นตาที่เข้ากับคุณ</h4>
+                    <p id="tip-glass">-</p>
+                </div>
+                <div class="card tip-card">
+                    <h4><span class="tile-icon"><i class="fa-regular fa-gem"></i></span>เครื่องประดับ</h4>
+                    <p id="tip-jewelry">-</p>
+                </div>
+                <div class="card tip-card">
+                    <h4 id="beard-label"><span class="tile-icon"><i class="fa-solid fa-user-check"></i></span>หนวดเครา / การแต่งหน้า</h4>
+                    <p id="tip-beard">-</p>
+                </div>
+            </div>
+            <button id="btn-save" onclick="saveToDB()" class="btn btn-primary btn-lg btn-block"><i class="fa-regular fa-bookmark"></i>บันทึกผลนี้</button>
+            <p id="guest-notice" class="hidden notice notice-warning">
+                <i class="fa-solid fa-circle-info mt-1"></i><span>สมัครสมาชิกฟรีเพื่อบันทึกผลวิเคราะห์และกลับมาดูภายหลัง</span>
+            </p>
+        </div>
+    </div>
+</div>

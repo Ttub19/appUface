@@ -1,0 +1,60 @@
+<!-- ============ PROFILE SCREEN ============ -->
+<div id="screen-profile" class="hidden page !max-w-[880px]">
+    <header class="page-header">
+        <div>
+            <h2 class="page-title">โปรไฟล์และธีมสี</h2>
+            <p class="page-sub">จัดการข้อมูลส่วนตัวและเลือกสีที่ชอบ</p>
+        </div>
+    </header>
+
+    <div class="card overflow-hidden">
+        <section class="card-pad grid md:grid-cols-3 gap-6 border-b border-[color:var(--border)]">
+            <div>
+                <h4 class="card-title">ข้อมูลส่วนตัว</h4>
+                <p class="card-sub">ชื่อนี้จะแสดงตอนจองคิวกับร้าน</p>
+            </div>
+            <div class="md:col-span-2 space-y-4">
+                <div class="field">
+                    <label for="profile-name" class="field-label">ชื่อที่แสดง</label>
+                    <input id="profile-name" type="text" value="" class="input">
+                </div>
+                <div class="field">
+                    <label for="profile-email" class="field-label">อีเมล</label>
+                    <input id="profile-email" type="email" value="" readonly class="input">
+                </div>
+                <div class="toggle-row" onclick="document.getElementById('profile-notify-toggle').click()">
+                    <span><strong>แจ้งเตือนเมื่อวิเคราะห์เสร็จ</strong><small>แสดงแจ้งเตือนเมื่อผลวิเคราะห์รูปหน้าพร้อม</small></span>
+                    <button id="profile-notify-toggle" type="button" role="switch" aria-label="แจ้งเตือนเมื่อวิเคราะห์เสร็จ" onclick="event.stopPropagation(); this.classList.toggle('is-on'); document.getElementById('profile-notify-dot').classList.toggle('translate-x-5')" class="switch is-on">
+                        <span id="profile-notify-dot" class="translate-x-5"></span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <section class="card-pad grid md:grid-cols-3 gap-6">
+            <div>
+                <h4 class="card-title">สีหลักของแอป</h4>
+                <p class="card-sub">ใช้กับปุ่มและไฮไลต์ทั้งหมด</p>
+            </div>
+            <div class="md:col-span-2 space-y-3">
+                <div id="accent-swatch-grid" class="grid grid-cols-3 gap-3">
+                    <button onclick="setAccent('#3E5C9A', this)" class="accent-swatch active bg-[#3E5C9A]" aria-label="น้ำเงิน"></button>
+                    <button onclick="setAccent('#264478', this)" class="accent-swatch bg-[#264478]" aria-label="กรมท่า"></button>
+                    <button onclick="setAccent('#141E3C', this)" class="accent-swatch bg-[#141E3C]" aria-label="น้ำเงินเข้ม"></button>
+                </div>
+                <div class="text-xs text-[color:var(--ink-3)] grid grid-cols-3 gap-3 text-center">
+                    <span>น้ำเงิน</span><span>กรมท่า</span><span>น้ำเงินเข้ม</span>
+                </div>
+                <div class="flex items-center gap-3 pt-3">
+                    <span class="text-[13px] text-[color:var(--ink-3)]">ตัวอย่าง</span>
+                    <span class="btn btn-primary btn-sm pointer-events-none">ปุ่มหลัก</span>
+                    <span class="chip chip-accent">ป้ายกำกับ</span>
+                </div>
+            </div>
+        </section>
+
+        <div class="px-6 py-4 flex justify-end bg-[color:var(--bg)] border-t border-[color:var(--border)]">
+            <button onclick="saveProfile()" class="btn btn-primary">บันทึกการตั้งค่า</button>
+        </div>
+    </div>
+</div>

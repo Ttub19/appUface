@@ -306,7 +306,7 @@ function finishGlassesCapture(canvas) {
     document.getElementById("glasses-placeholder").classList.add("hidden");
     document.getElementById("glasses-preview-container").classList.remove("hidden");
     document.getElementById("glasses-open-btn").classList.remove("hidden");
-    showToast("ถ่ายรูปพร้อมแว่น AR สำเร็จแล้ว!", "success");
+    showToast("บันทึกรูปพร้อมแว่นแล้ว", "success");
 }
 
 export function stopGlassesSession() {

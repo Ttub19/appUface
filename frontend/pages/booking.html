@@ -1,0 +1,30 @@
+<!-- ============ BARBER BOOKING SCREEN ============ -->
+<div id="screen-booking" class="hidden page !max-w-[1200px]">
+    <header class="booking-banner">
+        <img src="assets/images/booking-banner.jpg" alt="">
+        <div>
+            <h2 class="page-title">ค้นหาช่างและจองคิว</h2>
+            <p>ค้นหาร้านใกล้คุณด้วย GPS ดูความถนัดของช่าง จองเวลา และแชทถามร้านได้ในที่เดียว</p>
+            <span class="booking-trust"><i class="fa-solid fa-shield-halved"></i>ร้านยืนยันทุกคิว · ยกเลิกได้ล่วงหน้า 6 ชม.</span>
+        </div>
+    </header>
+    <div class="booking-tabs" role="tablist">
+        <button data-booking-tab="discover" onclick="showBookingTab('discover')">ค้นหาร้าน</button>
+        <button data-booking-tab="mine" onclick="showBookingTab('mine')">การจองของฉัน</button>
+        <button id="booking-manage-tab" class="hidden" data-booking-tab="manage" onclick="showBookingTab('manage')">จัดการร้าน</button>
+    </div>
+    <div id="booking-root" aria-live="polite"></div>
+    <div id="booking-chat-modal" class="hidden booking-chat-overlay" onclick="if(event.target===this)closeShopChat()">
+        <section class="booking-chat-dialog" role="dialog" aria-modal="true" aria-labelledby="booking-chat-title">
+            <header>
+                <div><span id="booking-chat-status">กำลังเชื่อมต่อ...</span><h3 id="booking-chat-title">แชทกับร้าน</h3></div>
+                <button onclick="closeShopChat()" aria-label="ปิดแชท">×</button>
+            </header>
+            <div id="booking-chat-messages" class="booking-chat-messages"></div>
+            <form class="booking-chat-compose" onsubmit="event.preventDefault();sendShopChat()">
+                <textarea id="booking-chat-input" maxlength="1000" placeholder="ถามเรื่องบริการ ราคา หรือเวลาว่าง" aria-label="ข้อความ" required></textarea>
+                <button type="submit">ส่ง</button>
+            </form>
+        </section>
+    </div>
+</div>

@@ -1,0 +1,88 @@
+<!-- ============ LOGIN SCREEN ============ -->
+<div id="screen-login" class="auth-shell">
+    <section class="auth-visual" aria-hidden="true">
+        <img src="assets/images/login-portrait.jpg?v=20261106" alt="">
+        <div class="brand absolute top-7 left-8 z-[3]">
+            <span class="brand-mark"><svg><use href="#logo-mark"/></svg></span>
+            <span class="brand-name !text-white">uShape</span>
+        </div>
+        <div class="auth-visual-copy">
+            <p class="auth-visual-title">รู้รูปหน้าก่อน<br>แล้วค่อยเลือกทรง</p>
+            <p>อัปโหลดรูปหน้าตรงหนึ่งรูป uShape บอกว่าหน้าคุณเป็นทรงไหนใน 5 แบบ ลองทรงผมบนรูปนั้น ลองแว่นผ่านกล้อง แล้วจองคิวร้านตัดผม</p>
+        </div>
+    </section>
+
+    <div class="auth-mobile-photo" aria-hidden="true">
+        <img src="assets/images/login-portrait.jpg?v=20261106" alt="">
+        <div class="brand">
+            <span class="brand-mark"><svg><use href="#logo-mark"/></svg></span>
+            <span class="brand-name">uShape</span>
+        </div>
+    </div>
+
+    <section class="auth-panel">
+        <div class="auth-form-wrap">
+          <div class="auth-form-inner">
+            <div class="brand mb-10 auth-desktop-brand">
+                <span class="brand-mark"><svg><use href="#logo-mark"/></svg></span>
+                <span class="brand-name">uShape</span>
+            </div>
+            <h1 class="text-[28px] font-medium tracking-tight leading-tight">ยินดีต้อนรับ</h1>
+            <p id="auth-subtitle" class="text-[15px] text-[color:var(--ink-3)] mt-2 mb-7">เข้าสู่ระบบเพื่อบันทึกประวัติและรายการโปรด</p>
+
+            <div id="auth-error" role="alert" class="hidden notice notice-danger mb-5"></div>
+
+            <form id="auth-form" class="space-y-4" onsubmit="event.preventDefault(); handleAuthSubmit();">
+                <div id="register-name-field" class="hidden field">
+                    <label for="auth-display-name" class="field-label">ชื่อที่แสดง</label>
+                    <input id="auth-display-name" type="text" autocomplete="name" class="input">
+                </div>
+                <div id="register-account-type-field" class="hidden field">
+                    <label for="auth-account-type" class="field-label">ประเภทบัญชี</label>
+                    <select id="auth-account-type" onchange="toggleBarberRegistrationFields()" class="select">
+                        <option value="member">ลูกค้าทั่วไป</option>
+                        <option value="barber">ช่างตัดผม (รอแอดมินอนุมัติ)</option>
+                    </select>
+                </div>
+                <div id="register-barber-fields" class="hidden auth-barber-panel">
+                    <strong>ข้อมูลยืนยันบัญชีช่าง</strong>
+                    <p>แอดมินใช้ตรวจสอบเท่านั้น ไม่แสดงต่อลูกค้า</p>
+                    <input id="auth-barber-legal-name" placeholder="ชื่อ–นามสกุลจริง" aria-label="ชื่อ–นามสกุลจริง">
+                    <input id="auth-barber-phone" type="tel" placeholder="เบอร์โทรศัพท์" aria-label="เบอร์โทรศัพท์">
+                    <input id="auth-barber-years" type="number" min="0" max="80" value="0" placeholder="ประสบการณ์ (ปี)" aria-label="ประสบการณ์ (ปี)">
+                    <input id="auth-barber-specialties" placeholder="ความเชี่ยวชาญ เช่น เฟด, ทำสี" aria-label="ความเชี่ยวชาญ">
+                    <textarea id="auth-barber-note" maxlength="2000" placeholder="แนะนำตัวและประสบการณ์ (อย่างน้อย 10 ตัวอักษร)" aria-label="แนะนำตัวและประสบการณ์"></textarea>
+                    <small>สร้างร้านและรับคิวได้หลังแอดมินอนุมัติ</small>
+                </div>
+                <div class="field">
+                    <label for="auth-email" class="field-label">อีเมล</label>
+                    <input id="auth-email" type="email" placeholder="you@example.com" autocomplete="email" required class="input">
+                </div>
+                <div class="field">
+                    <label for="auth-password" class="field-label">รหัสผ่าน</label>
+                    <input id="auth-password" type="password" autocomplete="current-password" required minlength="8" class="input">
+                    <span class="field-hint">อย่างน้อย 8 ตัวอักษร</span>
+                </div>
+
+                <button id="auth-submit-btn" type="submit" class="btn btn-primary btn-lg btn-block !mt-6">เข้าสู่ระบบ</button>
+            </form>
+
+            <p class="text-center text-[15px] mt-5 text-[color:var(--ink-3)]">
+                <span id="auth-mode-to-register">ยังไม่มีบัญชี? <button type="button" onclick="toggleAuthMode()" class="link">สมัครสมาชิก</button></span>
+                <span id="auth-mode-to-login" class="hidden">มีบัญชีอยู่แล้ว? <button type="button" onclick="toggleAuthMode()" class="link">เข้าสู่ระบบ</button></span>
+            </p>
+
+            <div class="flex items-center gap-3 my-6">
+                <div class="flex-1 divider"></div>
+                <span class="text-sm text-[color:var(--ink-4)]">หรือ</span>
+                <div class="flex-1 divider"></div>
+            </div>
+
+            <button type="button" onclick="continueAsGuest()" class="btn btn-secondary btn-lg btn-block">
+                ลองใช้โดยไม่ต้องสมัคร
+            </button>
+            <p class="text-center text-[13px] mt-3 text-[color:var(--ink-4)]">ดูผลวิเคราะห์ได้ แต่ยังบันทึกประวัติไม่ได้</p>
+          </div>
+        </div>
+    </section>
+</div>

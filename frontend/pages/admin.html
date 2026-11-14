@@ -1,0 +1,37 @@
+<!-- ============ ADMIN SCREEN ============ -->
+<div id="screen-admin" class="hidden page">
+    <header class="page-header">
+        <div>
+            <span class="eyebrow">ผู้ดูแลระบบ</span>
+            <h2 class="page-title">ภาพรวมระบบ</h2>
+        </div>
+    </header>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="card stat-card"><p><i class="fa-solid fa-users"></i>ผู้ใช้ทั้งหมด</p><p class="stat-value" id="admin-stat-users">–</p></div>
+        <div class="card stat-card"><p><i class="fa-regular fa-image"></i>ภาพที่วิเคราะห์</p><p class="stat-value" id="admin-stat-scans">–</p></div>
+        <div class="card stat-card"><p><i class="fa-solid fa-bullseye"></i>ความมั่นใจเฉลี่ย</p><p class="stat-value" id="admin-stat-confidence">–</p></div>
+    </div>
+    <section class="admin-verification-panel" aria-labelledby="admin-feedback-title">
+        <header><div><span>ข้อความจากผู้ใช้</span><h3 id="admin-feedback-title">ข้อความถึงแอดมิน</h3></div><strong id="admin-feedback-count" title="ข้อความใหม่">0</strong></header>
+        <div class="feedback-filters" role="group" aria-label="กรองตามสถานะ">
+            <button type="button" class="chip-btn is-active" data-feedback-filter="new" aria-pressed="true" onclick="loadAdminFeedback('new')">ใหม่</button>
+            <button type="button" class="chip-btn" data-feedback-filter="read" aria-pressed="false" onclick="loadAdminFeedback('read')">อ่านแล้ว</button>
+            <button type="button" class="chip-btn" data-feedback-filter="resolved" aria-pressed="false" onclick="loadAdminFeedback('resolved')">ดำเนินการแล้ว</button>
+            <button type="button" class="chip-btn" data-feedback-filter="all" aria-pressed="false" onclick="loadAdminFeedback('all')">ทั้งหมด</button>
+        </div>
+        <div id="admin-feedback-list" class="feedback-list"><p class="feedback-empty">กำลังโหลด...</p></div>
+    </section>
+    <section class="admin-verification-panel"><header><div><span>การยืนยันตัวตน</span><h3>คำขอสมัครบัญชีช่าง</h3></div><strong id="admin-barber-count">0</strong></header><div id="admin-barber-applications" class="barber-application-list"><div class="barber-application-empty">กำลังโหลดคำขอ...</div></div></section>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="card card-pad">
+            <h4 class="card-title mb-6">สัดส่วนรูปหน้าในระบบ</h4>
+            <canvas id="chart-shapes"></canvas>
+            <p id="chart-shapes-empty" class="hidden empty-state !py-10">ยังไม่มีข้อมูลการสแกน</p>
+        </div>
+        <div class="card card-pad">
+            <h4 class="card-title mb-6">จำนวนการสแกนรายเดือน</h4>
+            <canvas id="chart-usage"></canvas>
+            <p id="chart-usage-empty" class="hidden empty-state !py-10">ยังไม่มีข้อมูลการสแกน</p>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,48 @@
+<!-- ============ HISTORY SCREEN ============ -->
+<div id="screen-history" class="hidden page">
+    <header class="page-header">
+        <div>
+            <h2 class="page-title">ประวัติการสแกน</h2>
+            <p class="page-sub">ผลวิเคราะห์ทั้งหมดที่บันทึกไว้ในบัญชีของคุณ</p>
+        </div>
+    </header>
+    <div class="flex flex-col sm:flex-row gap-3">
+        <div class="input-icon flex-1">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input id="history-search" oninput="filterHistory()" type="search" placeholder="ค้นหารูปหน้า" aria-label="ค้นหาประวัติ" class="input !rounded-full">
+        </div>
+        <select id="history-filter" onchange="filterHistory()" aria-label="กรองตามรูปหน้า" class="select !rounded-full sm:w-56">
+            <option value="">ทุกรูปหน้า</option>
+            <option value="oval">หน้ารูปไข่ (Oval)</option>
+            <option value="round">หน้ากลม (Round)</option>
+            <option value="square">หน้าเหลี่ยม (Square)</option>
+            <option value="heart">หน้ารูปหัวใจ (Heart)</option>
+            <option value="oblong">หน้ายาว (Oblong)</option>
+        </select>
+    </div>
+    <div class="card overflow-hidden md:overflow-x-auto">
+        <table class="table table-cards md:min-w-[560px]">
+            <thead>
+                <tr>
+                    <th>ภาพ</th>
+                    <th>รูปหน้า</th>
+                    <th>ความมั่นใจ</th>
+                    <th>วันที่</th>
+                    <th class="w-16"><span class="sr-only">การจัดการ</span></th>
+                </tr>
+            </thead>
+            <tbody id="history-body"></tbody>
+        </table>
+        <div id="history-empty" class="empty-state">
+            <span class="empty-state-icon"><i class="fa-solid fa-clock-rotate-left"></i></span>
+            <strong>ยังไม่มีประวัติ</strong>
+            <span>วิเคราะห์รูปหน้าแล้วกด "บันทึกผลนี้" ผลจะมาอยู่ที่นี่</span>
+            <button onclick="navigateTo('screen-main')" class="btn btn-soft btn-sm mt-3">เริ่มวิเคราะห์รูปหน้า</button>
+        </div>
+        <div id="history-no-match" class="hidden empty-state">
+            <span class="empty-state-icon"><i class="fa-solid fa-magnifying-glass"></i></span>
+            <strong>ไม่พบผลที่ค้นหา</strong>
+            <span>ลองเปลี่ยนคำค้นหาหรือตัวกรองรูปหน้า</span>
+        </div>
+    </div>
+</div>

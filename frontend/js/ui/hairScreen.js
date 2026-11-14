@@ -190,7 +190,7 @@ function renderShapeFilter() {
     const analysed = analysedShape();
     note.classList.remove("hidden");
     if (analysed) {
-        note.textContent = `ผลวิเคราะห์ล่าสุดของคุณ: ${shapeLabel(analysed)} — ทรงที่มีป้าย "แนะนำ" อยู่ด้านบนสุด`;
+        note.textContent = `ผลวิเคราะห์ล่าสุดของคุณ: ${shapeLabel(analysed)} ทรงที่มีป้าย "แนะนำ" อยู่ด้านบนสุด`;
     } else {
         const text = document.createElement("span");
         text.textContent = "ยังไม่รู้รูปหน้าของคุณ วิเคราะห์ก่อนเพื่อดูว่าทรงไหนเหมาะ";
@@ -250,7 +250,7 @@ function renderStyleInfo() {
     } else {
         fit.classList.add("is-meh");
         fit.innerHTML = '<i class="fa-solid fa-circle-info" aria-hidden="true"></i>';
-        fit.append(` ไม่ใช่ทรงที่แนะนำสำหรับ${shortShape(analysed)} — ลองเทียบกับทรงที่มีป้าย "แนะนำ"`);
+        fit.append(` ไม่ใช่ทรงที่แนะนำสำหรับ${shortShape(analysed)} ลองเทียบกับทรงที่มีป้าย "แนะนำ"`);
     }
     root.replaceChildren(name, desc, fit);
 }

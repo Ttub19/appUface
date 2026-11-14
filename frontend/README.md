@@ -14,7 +14,9 @@ Web app: 1) วิเคราะห์รูปทรงใบหน้า 2) �
 
 ```
 frontend/
-├── index.html                 # markup หลัก ทุกหน้าจอ (screens) ของแอป
+├── index.html                 # โครงแอป: head, sidebar, tab bar และช่องว่าง data-include ของแต่ละหน้า
+├── pages/                     # markup ของแต่ละหน้าจอ แยกไฟล์ละหน้า (login, main, result, golden, guide,
+│                              #   favorites, admin, feedback, history, glasses, hairstyle, booking, profile)
 ├── Dockerfile + nginx.conf     # เสิร์ฟไฟล์ static + reverse proxy /api/* ไปที่ backend
 ├── package.json                # สคริปต์รัน dev server แบบ standalone (ไม่ต้อง npm install)
 ├── assets/hair/*.svg           # ทรงผมเวกเตอร์ที่วาดเอง (เทมเพลต 400×560: hairline anchor (200,168), ระยะขมับ 200px)
@@ -66,13 +68,21 @@ npm start
 # หรือ: python3 -m http.server 5173
 ```
 
-ต้องมี backend รันอยู่แล้ว (ดู `../backend/README.md`) และต้องบอก frontend ว่า backend อยู่ที่ไหน เพราะจะไม่มี nginx proxy คอย forward `/api` ให้ — เพิ่ม `<script>` นี้ใน `index.html` ก่อนแท็ก `<script type="module" src="js/app.js">`:
+ต้องมี backend รันอยู่แล้ว (ดู `../backend/README.md`) และต้องบอก frontend ว่า backend อยู่ที่ไหน เพราะจะไม่มี nginx proxy คอย forward `/api` ให้ — เพิ่ม `<script>` นี้ใน `index.html` ก่อนแท็ก `<script type="module" src="js/boot.js">`:
 
 ```html
 <script>window.__API_BASE_URL__ = "http://localhost:8000";</script>
 ```
 
 และตั้ง `CORS_ORIGINS` ใน backend's `.env` ให้รวม origin ของ frontend (เช่น `http://localhost:5173`) ด้วย
+
+## การโหลดหน้า (pages/)
+
+`js/boot.js` ดึงไฟล์ `pages/*.html` ทุกไฟล์พร้อมกันตอนเปิดเว็บ ใส่แทนช่อง `data-include` แล้วค่อย import `js/app.js` แอปยังเป็นหน้าเดียว สลับหน้าด้วย `navigateTo()` โดยไม่โหลดใหม่ จึงไม่เสีย state
+
+- เปิดไฟล์ `index.html` ตรง ๆ (file://) ไม่ได้ เพราะ fetch ใช้ไม่ได้ ให้รันผ่าน `npm start` หรือ `python -m http.server 5173`
+- แก้หน้าไหน ให้แก้ไฟล์ใน `pages/` และเพิ่มเลข `PAGES_VERSION` ใน `js/boot.js` เพื่อล้าง cache
+- เพิ่มหน้าใหม่: สร้าง `pages/<ชื่อ>.html` ที่มี `<div id="screen-<ชื่อ>" class="hidden page">` แล้วเพิ่ม `<div data-include="pages/<ชื่อ>.html"></div>` ใน `index.html` และใส่ id ใน `SCREEN_IDS` ของ `js/ui/navigation.js`
 
 ## ฟีเจอร์หลัก
 - **สแกน & วิเคราะห์**: อัปโหลด/ถ่ายภาพ → เรียก backend จริงวิเคราะห์รูปทรงใบหน้า พร้อม loading/success/error state ที่สมบูรณ์

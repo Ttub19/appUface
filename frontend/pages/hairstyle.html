@@ -1,0 +1,96 @@
+<!-- ============ VIRTUAL HAIRSTYLE TRY-ON SCREEN ============ -->
+<div id="screen-hairstyle" class="hidden page tryon-screen">
+    <header class="page-header">
+        <div class="page-header-main">
+            <button onclick="navigateTo('screen-main')" aria-label="กลับหน้าแรก" class="icon-btn mt-1"><i class="fa-solid fa-arrow-left"></i></button>
+            <div>
+                <h2 class="page-title">ลองทรงผม</h2>
+                <p class="page-sub">เลือกรูปหน้าตรงหนึ่งรูป uShape กลบผมเดิมแล้วสวมทรงใหม่ให้ ปรับทรง สี และขนาดได้จากแถบด้านข้าง</p>
+            </div>
+        </div>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+        <div class="lg:col-span-2 card p-3 tryon-stage-card">
+            <div class="ar-stage hair-photo-stage">
+                <div id="hair-loading" class="hidden processing-overlay is-dark">
+                    <div class="spinner"></div>
+                    <span id="hair-loading-text" class="text-center px-6">กำลังโหลด…</span>
+                </div>
+
+                <div id="hair-placeholder" class="stage-placeholder">
+                    <span class="stage-placeholder-icon"><i class="fa-solid fa-scissors"></i></span>
+                    <p>เลือกรูปหน้าตรงที่เห็นหน้าผากชัด<br>แล้วเลือกทรงผมที่อยากลอง</p>
+                </div>
+
+                <video id="hair-video" class="hidden is-mirrored" autoplay playsinline muted></video>
+                <canvas id="hair-stage" class="hidden" aria-label="รูปของคุณกับทรงผมใหม่"></canvas>
+            </div>
+
+            <div id="hair-source-actions" class="stage-toolbar hair-source-actions">
+                <button id="hair-use-scan" type="button" onclick="useScanPhotoForHair()" class="btn btn-primary hidden"><i class="fa-solid fa-image-portrait"></i>ใช้รูปที่วิเคราะห์ไว้</button>
+                <button type="button" onclick="openHairPhotoPicker()" class="btn btn-secondary"><i class="fa-solid fa-upload"></i>อัปโหลดรูป</button>
+                <button type="button" onclick="startHairCamera()" class="btn btn-secondary"><i class="fa-solid fa-camera"></i>ถ่ายรูปจากกล้อง</button>
+                <input id="hair-file" type="file" accept="image/*" class="hidden" onchange="handleHairPhotoUpload(this)">
+            </div>
+
+            <div id="hair-camera-controls" class="hidden stage-toolbar">
+                <button type="button" onclick="snapHairPhoto()" class="btn btn-primary btn-lg"><i class="fa-solid fa-camera"></i>ถ่ายรูปนี้</button>
+                <button type="button" onclick="resetHairPhoto()" class="btn btn-secondary">ยกเลิก</button>
+            </div>
+
+            <div id="hair-controls" class="hidden stage-toolbar">
+                <div class="tryon-size-control">
+                    <label for="hair-size">ขนาดทรงผม</label>
+                    <input id="hair-size" type="range" min="75" max="125" step="1" value="100" oninput="setHairSize(this.value)" aria-describedby="hair-size-value">
+                    <output id="hair-size-value" for="hair-size">พอดีหัว</output>
+                    <button type="button" onclick="setHairSize(100)" class="btn btn-ghost btn-sm">รีเซ็ต</button>
+                </div>
+                <div class="tryon-size-control">
+                    <label for="hair-offset">ตำแหน่งขึ้น-ลง</label>
+                    <input id="hair-offset" type="range" min="-15" max="15" step="1" value="0" oninput="setHairOffset(this.value)" aria-describedby="hair-offset-value">
+                    <output id="hair-offset-value" for="hair-offset">อัตโนมัติ</output>
+                    <button type="button" onclick="setHairOffset(0)" class="btn btn-ghost btn-sm">รีเซ็ต</button>
+                </div>
+                <div id="hair-ai-panel" class="hidden hair-ai-panel">
+                    <div class="hair-ai-actions">
+                        <button id="hair-ai-btn" type="button" onclick="generateRealisticHair()" class="btn btn-dark"><i class="fa-solid fa-wand-magic-sparkles"></i><span id="hair-ai-btn-label">สร้างภาพสมจริง</span></button>
+                        <button id="hair-ai-toggle" type="button" onclick="toggleRealisticView()" class="hidden btn btn-ghost btn-sm">ดูแบบเดิม (2D)</button>
+                    </div>
+                    <p class="hair-ai-note"><span id="hair-ai-quota"></span> · ใช้ AI จาก <span id="hair-ai-provider"></span></p>
+                    <label id="hair-ai-consent" class="hidden hair-ai-consent">
+                        <input id="hair-ai-agree" type="checkbox">
+                        <span>ยอมรับให้ส่งรูปนี้ไปให้บริการ AI ภายนอกสร้างภาพ uShape ไม่เก็บรูปไว้ที่เซิร์ฟเวอร์ ส่วนการลองผมปกติประมวลผลในเครื่องของคุณ ไม่ส่งรูปออกไป</span>
+                    </label>
+                </div>
+                <button type="button" onclick="captureHairPhoto()" class="btn btn-primary"><i class="fa-solid fa-download"></i>บันทึกรูป</button>
+                <button type="button" onclick="resetHairPhoto()" class="btn btn-secondary"><i class="fa-solid fa-image"></i>เปลี่ยนรูป</button>
+            </div>
+            <p class="stage-note"><i class="fa-solid fa-lock mr-1"></i>ประมวลผลบนเครื่องของคุณ รูปไม่ถูกส่งขึ้นเซิร์ฟเวอร์</p>
+        </div>
+
+        <div class="lg:col-span-1 tryon-panel">
+            <div class="card card-pad space-y-5">
+                <div id="hair-style-info" class="hair-style-info" aria-live="polite"></div>
+                <div class="space-y-3">
+                    <h4 class="card-title">รูปหน้าของคุณ</h4>
+                    <div id="hair-shape-filter" class="tryon-filter" role="toolbar" aria-label="กรองตามรูปหน้า"></div>
+                    <p id="hair-recommend-note" class="hidden notice notice-info !text-[13px] hair-recommend-note"></p>
+                </div>
+                <div class="space-y-3">
+                    <h4 class="card-title">เลือกทรงผม</h4>
+                    <div id="hair-category-filter" class="tryon-filter" role="toolbar" aria-label="หมวดหมู่ทรงผม"></div>
+                    <div id="hair-selector" class="option-list rail-mobile tryon-list" aria-label="รายการทรงผม"></div>
+                </div>
+                <div class="space-y-3">
+                    <h4 class="card-title">สีผม</h4>
+                    <div id="hair-color-filter" class="tryon-filter" role="toolbar" aria-label="สีผม"></div>
+                </div>
+                <label class="toggle-row">
+                    <span><strong>กลบผมเดิม</strong><small>ให้ทรงใหม่ดูสมจริงขึ้น</small></span>
+                    <input id="hair-erase-toggle" type="checkbox" checked onchange="setHairErase(this.checked)" class="w-5 h-5 shrink-0" style="accent-color: var(--accent)">
+                </label>
+            </div>
+        </div>
+    </div>
+</div>
