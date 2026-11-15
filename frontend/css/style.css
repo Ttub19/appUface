@@ -453,6 +453,9 @@ img { -webkit-user-drag: none; }
 @media (max-width: 767px) { .ar-stage { aspect-ratio: 3 / 4; } }
 .ar-stage video, .ar-stage canvas, .ar-stage svg, .ar-stage img { position: absolute; inset: 0; width: 100%; height: 100%; }
 .ar-stage video, .ar-stage canvas, .ar-stage img { object-fit: cover; }
+/* Selfie cameras are shown like a mirror on every screen (scan, hair, glasses, golden).
+   The overlay layer flips with its video so landmarks stay aligned. */
+.ar-stage .is-mirrored { transform: scaleX(-1); }
 .ar-stage svg { pointer-events: none; }
 .ar-tracked-group { will-change: transform; }
 .stage-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; text-align: center; color: rgba(255,255,255,.7); font-size: 14px; line-height: 1.6; }

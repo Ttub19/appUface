@@ -285,13 +285,24 @@ export async function captureGlassesPhoto() {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height); // freeze this frame first
         const drawn = await drawGlassesOnto(ctx);
         if (!drawn) throw new Error("no frame to draw");
-        finishGlassesCapture(canvas);
+        finishGlassesCapture(mirrorCanvas(canvas));   // match the mirrored live preview
     } catch (error) {
         console.error("Glasses capture failed:", error);
         showToast("ถ่ายรูปพร้อมแว่นไม่สำเร็จ ลองกดถ่ายอีกครั้ง", "error");
     } finally {
         capturing = false;
     }
+}
+
+function mirrorCanvas(source) {
+    const out = document.createElement("canvas");
+    out.width = source.width;
+    out.height = source.height;
+    const ctx = out.getContext("2d");
+    ctx.translate(out.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(source, 0, 0);
+    return out;
 }
 
 function finishGlassesCapture(canvas) {
