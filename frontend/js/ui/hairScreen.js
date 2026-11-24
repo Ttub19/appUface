@@ -276,7 +276,10 @@ function renderHairSelector() {
         btn.type = "button";
         btn.dataset.style = style.id;
         btn.className = "hair-btn option-card is-vertical";
-        btn.addEventListener("click", () => selectHairStyle(style.id));
+        btn.addEventListener("click", () => {
+            selectHairStyle(style.id);
+            revealHairStageOnPhone();
+        });
 
         const thumb = document.createElement("img");
         thumb.src = style.src;
@@ -313,6 +316,16 @@ function highlightSelected() {
         btn.classList.toggle("is-selected", active);
         btn.setAttribute("aria-pressed", String(active));
     });
+}
+
+/** Phones: the style list sits below the photo, so after picking a style
+ *  scroll the photo back into view if it has scrolled mostly off screen. */
+function revealHairStageOnPhone() {
+    if (!hairSession || window.innerWidth >= 768) return;
+    const stage = document.querySelector("#screen-hairstyle .ar-stage");
+    if (!stage) return;
+    const r = stage.getBoundingClientRect();
+    if (r.bottom < window.innerHeight * 0.45) stage.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 export async function selectHairStyle(id) {

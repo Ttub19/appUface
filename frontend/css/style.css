@@ -124,7 +124,7 @@ img { -webkit-user-drag: none; }
     width: 100%; min-height: 50px; padding: 12px 16px;
     background: var(--surface); color: var(--ink);
     border: 1px solid var(--border-strong); border-radius: var(--radius);
-    font-size: 15px;
+    font-size: 16px; /* 16px+ stops iOS Safari from zooming in when a field is focused */
     transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 .input::placeholder { color: var(--ink-4); }
@@ -431,12 +431,12 @@ img { -webkit-user-drag: none; }
 .model-card[aria-checked="true"] .model-card-dot { border-color: var(--accent); background: radial-gradient(circle, var(--accent) 0 4px, var(--surface) 5px); }
 .model-card-name { font-size: 16px; font-weight: 600; color: var(--ink); }
 .model-card[aria-disabled="true"] .model-card-name { color: var(--ink-3); }
-.model-badge { margin-left: auto; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: .02em;
+.model-badge { margin-left: auto; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; letter-spacing: .02em;
                color: var(--ink-3); background: var(--surface-2); }
 .model-badge.is-default { color: var(--success); background: var(--success-soft); }
 .model-card-desc { font-size: 13px; line-height: 1.55; color: var(--ink-2); }
 .model-card[aria-disabled="true"] .model-card-desc { color: var(--ink-3); }
-.model-card-tech { font-size: 11px; letter-spacing: .04em; color: var(--ink-3); text-transform: uppercase; }
+.model-card-tech { font-size: 12px; letter-spacing: .04em; color: var(--ink-3); text-transform: uppercase; }
 .model-card-note { display: flex; gap: 6px; font-size: 12px; line-height: 1.5; color: var(--warning); }
 @media (prefers-reduced-motion: reduce) { .model-card { transition: none; } }
 .tip-card { display: flex; flex-direction: column; gap: 12px; padding: 20px; }
@@ -932,3 +932,39 @@ img { -webkit-user-drag: none; }
 /* ---------- Skip link ---------- */
 .skip-link { position: absolute; left: 12px; top: -48px; z-index: 100; padding: 10px 16px; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 600; transition: top var(--dur) var(--ease); }
 .skip-link:focus { top: 12px; }
+
+
+/* ---------- Phone fixes (2026-11-24 mobile audit) ----------
+   1. form fields at 16px so iOS Safari does not zoom on focus
+   2. touch targets at least 44px tall
+   3. home: photo + choose/take/analyse buttons above the fold
+   4. try-on: stage scrolls under the sticky top bar cleanly */
+@media (max-width: 767px) {
+    .home-pref .select { font-size: 16px; min-height: 44px; }
+
+    .btn-sm,
+    .chip-filter,
+    .tryon-filter .chip-filter,
+    .chip-btn { min-height: 44px; }
+    .chip-btn { display: inline-flex; align-items: center; }
+    .link,
+    .home-section-head button { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; }
+    #mobile-topbar .user-avatar { width: 44px !important; height: 44px !important; }
+    .switch { width: 52px; height: 32px; }
+    .switch > span { width: 26px; height: 26px; }
+    .switch > span.translate-x-5 { transform: translateX(20px); }
+
+    .home-intro { display: flex; flex-direction: column; gap: 0; }
+    .home-intro > div { display: contents; }
+    .home-kicker { order: 1; }
+    .home-title { order: 2; }
+    .home-figure { order: 3; margin-top: 20px; }
+    .home-frame { max-height: 44vh; max-height: 44svh; }
+    .home-actions { order: 4; margin-top: 16px; }
+    .scan-options { order: 5; margin-top: 28px; }
+    .scan-options + .home-actions { margin-top: 16px; }
+    .home-lede { order: 6; margin-top: 28px; }
+    .home-steps { order: 7; margin-top: 20px; }
+
+    .tryon-screen .ar-stage { scroll-margin-top: 72px; }
+}

@@ -101,10 +101,20 @@ function initGlassesPicker() {
     });
     list.addEventListener("click", (e) => {
         const btn = e.target.closest("[data-style]");
-        if (btn) selectGlassesStyle(btn.dataset.style);
+        if (!btn) return;
+        selectGlassesStyle(btn.dataset.style);
+        if (glassesSession) revealStageOnPhone(document.querySelector("#screen-glasses .ar-stage"));
     });
     renderCategoryChips();
     renderGlassesList();
+}
+
+/** Phones: the frame list sits below the camera, so after picking a frame
+ *  scroll the camera back into view if it has scrolled mostly off screen. */
+function revealStageOnPhone(stage) {
+    if (!stage || window.innerWidth >= 768) return;
+    const r = stage.getBoundingClientRect();
+    if (r.bottom < window.innerHeight * 0.45) stage.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 /** Accepts current or legacy style ids (the face-shape guide still uses the old ones). */

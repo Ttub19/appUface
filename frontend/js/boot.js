@@ -5,7 +5,7 @@
 // fetch() does not work from file://, so open the site through a local server
 // (npm start) or GitHub Pages.
 
-const PAGES_VERSION = "20261115";
+const PAGES_VERSION = "20261124";
 
 async function loadPage(placeholder) {
     const src = placeholder.dataset.include;
