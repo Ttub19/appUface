@@ -180,12 +180,10 @@ function renderModelPicker() {
         head.append(el("span", "model-card-dot"), el("strong", "model-card-name", m.label));
         if (m.badge) head.append(el("span", `model-badge${m.default ? " is-default" : ""}`, m.badge));
         card.append(head);
-        card.append(el("span", "model-card-desc", m.detail || ""));
+        // Name + badge only (แนะนำ / รุ่นแรก); the long description and backbone name were dropped.
         if (!usable) {
             const fallback = defaultModel().label;
             card.append(el("span", "model-card-note", `ยังไม่รองรับ${GENDER_TH[gender] || "เพศนี้"} จะใช้โมเดล ${fallback} แทน`));
-        } else if (m.tech) {
-            card.append(el("span", "model-card-tech", m.tech));
         }
         card.addEventListener("click", () => { if (usable) setScanModel(m.id); });
         group.appendChild(card);
