@@ -8,13 +8,17 @@ credentials are set):
 
   cloudflare  (default, free) — Cloudflare Workers AI, FLUX.2 [klein] 9B image
               editing (Stable Diffusion 1.5 inpainting, used before, was retired
-              by Cloudflare on 2026-11-20). The browser sends a 512x512 crop
-              around the head of the 2D try-on (= the shape and colour of the
-              chosen style) plus a mask of the hair area. FLUX.2 has no mask
-              input, so it edits the whole crop, and the browser pastes back only
-              the masked hair ("patch" mode) — the face stays the user's own.
+              by Cloudflare on 2026-11-20).
+              "full" mode (default, Meitu-style): the browser sends the whole
+              photo + a picture of the chosen hairstyle; FLUX.2 gets both as
+              reference images (input_image_0 / input_image_1) and redraws the
+              hair on the person. The browser then lays the user's own face
+              (eyebrows to chin) back over the result, so identity never drifts.
+              "patch" mode (CLOUDFLARE_HAIR_MODE=patch, the older approach): a
+              512x512 crop of the 2D try-on is made photo-real and only the
+              masked hair is pasted back.
               Env: CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN,
-                   optional CLOUDFLARE_IMAGE_MODEL
+                   optional CLOUDFLARE_IMAGE_MODEL, CLOUDFLARE_HAIR_MODE
 
   gemini      (better quality, paid / Google Cloud trial credit) — Gemini image
               editing. Gets the original photo + the chosen hairstyle picture
@@ -46,7 +50,9 @@ DEFAULT_DAILY_LIMIT = 5
 # FLUX.2 models take multipart/form-data (prompt, width, height, input_image_0..); SD 1.5 inpainting was retired 2026-11-20
 CLOUDFLARE_MODEL = "@cf/black-forest-labs/flux-2-klein-9b"
 DEFAULT_GEMINI_MODEL = "gemini-nano-banana-2.1"
-PATCH_SIZE = 512                       # SD 1.5 works at 512 px
+PATCH_SIZE = 512                       # patch mode crop size
+FULL_MAX_SIDE = 1024                   # full mode: output size follows the photo, long side <= this
+FLUX_MIN_SIDE, FLUX_MAX_SIDE = 256, 1920
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 TIMEOUT_S = 90
 
@@ -72,6 +78,7 @@ class HairAIConfig:
     gemini_api_key: str = ""
     gemini_model: str = DEFAULT_GEMINI_MODEL
     cloudflare_model: str = CLOUDFLARE_MODEL
+    cloudflare_mode: str = "full"
 
     @property
     def enabled(self) -> bool:
@@ -79,7 +86,7 @@ class HairAIConfig:
 
     @property
     def mode(self) -> Optional[str]:
-        return {"cloudflare": "patch", "gemini": "full"}.get(self.provider)
+        return {"cloudflare": self.cloudflare_mode, "gemini": "full"}.get(self.provider)
 
 
 def load_config(env=os.environ) -> HairAIConfig:
@@ -101,7 +108,8 @@ def load_config(env=os.environ) -> HairAIConfig:
         limit = DEFAULT_DAILY_LIMIT
     return HairAIConfig(provider, limit, cf_id, cf_token, gem_key,
                         env.get("GEMINI_IMAGE_MODEL", "").strip() or DEFAULT_GEMINI_MODEL,
-                        env.get("CLOUDFLARE_IMAGE_MODEL", "").strip() or CLOUDFLARE_MODEL)
+                        env.get("CLOUDFLARE_IMAGE_MODEL", "").strip() or CLOUDFLARE_MODEL,
+                        "patch" if env.get("CLOUDFLARE_HAIR_MODE", "").strip().lower() == "patch" else "full")
 
 
 def day_start_utc(now: Optional[datetime] = None) -> datetime:
@@ -164,6 +172,39 @@ def gemini_prompt(style_name: str, color_words: str) -> str:
             "shadows matching the photo), fitted to this person's head. Keep the face, identity, expression, skin, "
             "eyes, clothes, background, framing and image size exactly the same; change only the hair. "
             "Return only the edited photo.")
+
+
+def cloudflare_full_prompt(style_name: str, color_words: str) -> str:
+    """Meitu-style edit: image 1 = the user's photo, image 2 = the hairstyle to put on them."""
+    return (f"Change only the hairstyle of the person in the first image. Give them the {style_name} hairstyle shown "
+            f"in the second image, with {color_words} hair. The new hair must look completely real: natural strands, "
+            "volume, hairline, soft shadows and lighting that match the first photo, fitted to the person's head. "
+            "Remove the old hair where the new style is shorter. Keep the person's face, identity, expression, skin, "
+            "eyes, eyebrows, ears, clothes, pose, background, framing and image size exactly the same as the first image. "
+            "Photorealistic photo, no wig, no drawing, no text.")
+
+
+def flux_size(width: int, height: int, max_side: int = FULL_MAX_SIDE) -> tuple[int, int]:
+    """Output size for FLUX.2: same aspect as the photo, long side <= max_side, multiples of 16, within its range."""
+    k = min(1.0, max_side / max(width, height))
+    fit = lambda v: int(min(FLUX_MAX_SIDE, max(FLUX_MIN_SIDE, round(v * k / 16) * 16)))
+    return fit(width), fit(height)
+
+
+def _ext(mime: str) -> str:
+    return {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}.get(mime, "png")
+
+
+def cloudflare_full_form(photo: tuple[bytes, str], reference: tuple[bytes, str], style_name: str, color_words: str) -> list:
+    """multipart fields for full mode: the photo + the hairstyle picture as FLUX.2 reference images."""
+    width, height = flux_size(*image_size(photo[0]))
+    return [
+        ("prompt", cloudflare_full_prompt(style_name, color_words), None, None),
+        ("width", str(width), None, None),
+        ("height", str(height), None, None),
+        ("input_image_0", photo[0], f"photo.{_ext(photo[1])}", photo[1]),
+        ("input_image_1", reference[0], f"hairstyle.{_ext(reference[1])}", reference[1]),
+    ]
 
 
 def cloudflare_form(guide_png: bytes, style_name: str, color_words: str) -> list:
@@ -302,7 +343,9 @@ def call_provider(cfg: HairAIConfig, *, style_name: str, color_words: str,
     """Blocking network call (run it in a thread). Returns (image bytes, mime)."""
     if cfg.provider == "cloudflare":
         url = f"https://api.cloudflare.com/client/v4/accounts/{cfg.cloudflare_account_id}/ai/run/{cfg.cloudflare_model}"
-        body_bytes, content_type = encode_multipart(cloudflare_form(guide, style_name, color_words))
+        fields = (cloudflare_full_form(photo, reference, style_name, color_words) if photo is not None
+                  else cloudflare_form(guide, style_name, color_words))
+        body_bytes, content_type = encode_multipart(fields)
         status_code, ctype, body = _post_raw(url, {"Authorization": f"Bearer {cfg.cloudflare_api_token}",
                                                    "Content-Type": content_type}, body_bytes)
         if status_code >= 400 and not _sniff_mime(body):

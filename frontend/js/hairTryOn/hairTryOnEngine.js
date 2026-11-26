@@ -348,6 +348,12 @@ export class HairTryOnSession {
 // ---------------------------------------------------------------------------
 const PHOTO_MAX_SIDE = 1280;        // photos are downscaled to this before processing
 const PHOTO_SEGMENT_WIDTH = 512;    // hair mask resolution (live mode uses 384)
+// full-mode face keep: outline (Face Mesh ids) from the left temple over the eyebrows to the right temple,
+// then down the jaw to the chin and back up; and how far (in face widths) the generated face may have moved.
+const FACE_KEEP_OUTLINE = [127, 70, 63, 105, 66, 107, 9, 336, 296, 334, 293, 300, 356, 454, 323, 361, 288, 397, 365,
+    379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234];
+const FACE_KEEP_MAX_SHIFT = 0.06;
+
 export const NO_FACE_IN_PHOTO = "ไม่พบใบหน้าในรูป กรุณาใช้รูปหน้าตรงที่เห็นใบหน้าและหน้าผากชัดเจน";
 
 let photoModelsPromise = null;
@@ -675,6 +681,61 @@ export class HairPhotoSession {
         pctx.drawImage(alpha, 0, 0, crop.size, crop.size);
         octx.drawImage(patch, crop.x, crop.y);
         return out;
+    }
+
+    /**
+     * full mode (Meitu-style): the model redrew the whole photo with the new hair. Scale it to the
+     * photo, then lay the user's own face (eyebrows -> chin, feathered edge) back on top so the
+     * identity, eyes and skin are exactly theirs. If the model moved the head too much for a clean
+     * seam, the generated image is used as it is. Returns { image, faceKept }.
+     */
+    composeFaceKeep(resultImage) {
+        const { width: w, height: h } = this.base;
+        const out = document.createElement("canvas");
+        out.width = w; out.height = h;
+        const octx = out.getContext("2d");
+        octx.drawImage(resultImage, 0, 0, w, h);
+        const orig = this.face?.landmarks;
+        if (!orig) return { image: out, faceKept: false };
+        const px = (lm, i) => ({ x: lm[i].x * w, y: lm[i].y * h });
+        const faceWidth = Math.hypot(px(orig, 234).x - px(orig, 454).x, px(orig, 234).y - px(orig, 454).y) || w / 3;
+
+        // did the model keep the face where it was? (eyes, nose tip, chin)
+        let moved = Infinity;
+        try {
+            const res = this.models?.faceLandmarker?.detect(out);
+            const gen = res?.faceLandmarks?.[0];
+            if (gen) {
+                const keys = [33, 263, 1, 152, 61, 291];
+                moved = keys.reduce((sum, i) => sum + Math.hypot(px(gen, i).x - px(orig, i).x, px(gen, i).y - px(orig, i).y), 0)
+                    / keys.length / faceWidth;
+            }
+        } catch (err) {
+            console.warn("face check on the generated image failed", err);
+        }
+        if (!(moved <= FACE_KEEP_MAX_SHIFT)) return { image: out, faceKept: false };
+
+        // eyebrows (top edge, so fringes/bangs above them stay generated) round the jaw to the chin
+        const mask = document.createElement("canvas");
+        mask.width = w; mask.height = h;
+        const mctx = mask.getContext("2d");
+        mctx.filter = `blur(${Math.max(2, Math.round(faceWidth / 22))}px)`;
+        mctx.fillStyle = "#fff";
+        mctx.beginPath();
+        FACE_KEEP_OUTLINE.forEach((i, n) => {
+            const p = px(orig, i);
+            if (n === 0) mctx.moveTo(p.x, p.y); else mctx.lineTo(p.x, p.y);
+        });
+        mctx.closePath();
+        mctx.fill();
+        const face = document.createElement("canvas");
+        face.width = w; face.height = h;
+        const fctx = face.getContext("2d");
+        fctx.drawImage(this.base, 0, 0);
+        fctx.globalCompositeOperation = "destination-in";
+        fctx.drawImage(mask, 0, 0);
+        octx.drawImage(face, 0, 0);
+        return { image: out, faceKept: true };
     }
 
     /** Show a finished realistic image instead of the 2D try-on (null = back to 2D). */

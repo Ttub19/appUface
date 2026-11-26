@@ -598,7 +598,7 @@ export async function generateRealisticHair() {
     }
     aiBusy = true;
     refreshAIPanel();
-    setLoading("AI กำลังวาดเส้นผมให้สมจริง… ประมาณ 5–20 วินาที");
+    setLoading(aiConfig.mode === "full" ? "AI กำลังเปลี่ยนทรงผมให้สมจริง… ประมาณ 10–30 วินาที" : "AI กำลังวาดเส้นผมให้สมจริง… ประมาณ 5–20 วินาที");
     try {
         const style = getHairStyle(currentHairStyle);
         const color = getHairColor(hairColorId);
@@ -610,7 +610,9 @@ export async function generateRealisticHair() {
 
         const res = await apiClient.generateRealisticHair(payload);
         const image = await imageFromSrc(res.image_data_url);
-        const finished = res.mode === "patch" ? hairSession.composePatch(image, inputs) : image;
+        let finished = image;
+        if (res.mode === "patch") finished = hairSession.composePatch(image, inputs);
+        else finished = hairSession.composeFaceKeep(image).image;   // full mode: keep the user's own face
         aiCache.set(key, finished);
         if (aiCache.size > AI_CACHE_SIZE) aiCache.delete(aiCache.keys().next().value);
         aiConfig.remaining_today = res.remaining_today;

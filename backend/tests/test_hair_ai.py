@@ -37,7 +37,8 @@ class Config(unittest.TestCase):
     def test_auto_prefers_free_cloudflare(self):
         self.assertEqual(hair_ai.load_config({**self.CF, **self.GEM}).provider, "cloudflare")
         self.assertEqual(hair_ai.load_config(self.GEM).provider, "gemini")
-        self.assertEqual(hair_ai.load_config(self.CF).mode, "patch")
+        self.assertEqual(hair_ai.load_config(self.CF).mode, "full")
+        self.assertEqual(hair_ai.load_config({**self.CF, "CLOUDFLARE_HAIR_MODE": "patch"}).mode, "patch")
         self.assertEqual(hair_ai.load_config(self.GEM).mode, "full")
 
     def test_explicit_provider_and_limit(self):
@@ -93,6 +94,25 @@ class Inputs(unittest.TestCase):
         parts = {p.get_param("name", header="content-disposition"): p.get_payload(decode=True) for p in msg.get_payload()}
         self.assertEqual(parts["input_image_0"], g)
         self.assertEqual(parts["width"], b"512")
+
+    def test_cloudflare_full_form_sends_photo_and_hairstyle(self):
+        photo = png_bytes((900, 1200))
+        ref = png_bytes((300, 300), (200, 150, 100))
+        fields = hair_ai.cloudflare_full_form((photo, "image/png"), (ref, "image/png"), "Wolf Cut", "dark brown")
+        by_name = {f[0]: f for f in fields}
+        self.assertEqual(by_name["input_image_0"][1], photo)
+        self.assertEqual(by_name["input_image_1"][1], ref)
+        self.assertIn("Wolf Cut", by_name["prompt"][1])
+        self.assertIn("exactly the same", by_name["prompt"][1])
+        w, h = int(by_name["width"][1]), int(by_name["height"][1])
+        self.assertEqual((w % 16, h % 16), (0, 0))
+        self.assertLessEqual(max(w, h), 1024)
+        self.assertAlmostEqual(w / h, 900 / 1200, delta=0.03)
+
+    def test_flux_size_limits(self):
+        self.assertEqual(hair_ai.flux_size(1024, 768), (1024, 768))
+        self.assertEqual(hair_ai.flux_size(4000, 3000), (1024, 768))
+        self.assertEqual(hair_ai.flux_size(100, 2000), (256, 1024))   # clamped to the model's minimum
 
     def test_cloudflare_model_default_and_override(self):
         cf = {"CLOUDFLARE_ACCOUNT_ID": "acc", "CLOUDFLARE_API_TOKEN": "tok"}
