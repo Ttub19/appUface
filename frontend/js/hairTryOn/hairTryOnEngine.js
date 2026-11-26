@@ -353,6 +353,7 @@ const PHOTO_SEGMENT_WIDTH = 512;    // hair mask resolution (live mode uses 384)
 const FACE_KEEP_OUTLINE = [127, 70, 63, 105, 66, 107, 9, 336, 296, 334, 293, 300, 356, 454, 323, 361, 288, 397, 365,
     379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234];
 const FACE_KEEP_MAX_SHIFT = 0.06;
+const FACE_KEEP_SHRINK = 0.94;      // outline pulled 6% toward the nose tip
 
 export const NO_FACE_IN_PHOTO = "ไม่พบใบหน้าในรูป กรุณาใช้รูปหน้าตรงที่เห็นใบหน้าและหน้าผากชัดเจน";
 
@@ -715,19 +716,32 @@ export class HairPhotoSession {
         }
         if (!(moved <= FACE_KEEP_MAX_SHIFT)) return { image: out, faceKept: false };
 
-        // eyebrows (top edge, so fringes/bangs above them stay generated) round the jaw to the chin
+        // eyebrows (top edge, so fringes/bangs above them stay generated) round the jaw to the chin,
+        // pulled a little toward the nose so the edge sits inside the face, not on the cheek line
         const mask = document.createElement("canvas");
         mask.width = w; mask.height = h;
         const mctx = mask.getContext("2d");
         mctx.filter = `blur(${Math.max(2, Math.round(faceWidth / 22))}px)`;
         mctx.fillStyle = "#fff";
         mctx.beginPath();
+        const centre = px(orig, 1);
         FACE_KEEP_OUTLINE.forEach((i, n) => {
             const p = px(orig, i);
-            if (n === 0) mctx.moveTo(p.x, p.y); else mctx.lineTo(p.x, p.y);
+            const x = centre.x + (p.x - centre.x) * FACE_KEEP_SHRINK, y = centre.y + (p.y - centre.y) * FACE_KEEP_SHRINK;
+            if (n === 0) mctx.moveTo(x, y); else mctx.lineTo(x, y);
         });
         mctx.closePath();
         mctx.fill();
+
+        // hair the model drew over the face (long styles fall over the cheeks, fringes over the brows)
+        // must stay on top: cut the generated image's hair out of the face mask
+        const hairCut = this._hairAlpha(out);
+        if (hairCut) {
+            mctx.filter = `blur(${Math.max(1, Math.round(faceWidth / 60))}px)`;
+            mctx.globalCompositeOperation = "destination-out";
+            mctx.drawImage(hairCut, 0, 0, w, h);
+            mctx.globalCompositeOperation = "source-over";
+        }
         const face = document.createElement("canvas");
         face.width = w; face.height = h;
         const fctx = face.getContext("2d");
@@ -736,6 +750,37 @@ export class HairPhotoSession {
         fctx.drawImage(mask, 0, 0);
         octx.drawImage(face, 0, 0);
         return { image: out, faceKept: true };
+    }
+
+    /** Hair probability of an image as an alpha canvas (segmenter resolution), or null. */
+    _hairAlpha(image) {
+        const seg = this.models?.hairSegmenter;
+        if (!seg) return null;
+        const sw = Math.min(PHOTO_SEGMENT_WIDTH, image.width), sh = Math.round(sw * image.height / image.width);
+        const small = document.createElement("canvas");
+        small.width = sw; small.height = sh;
+        small.getContext("2d").drawImage(image, 0, 0, sw, sh);
+        let conf = null;
+        try {
+            seg.segment(small, (res) => {
+                const masks = res.confidenceMasks;
+                const m = masks?.[masks.length - 1];            // hair_segmenter: [background, hair]
+                if (m && m.width === sw && m.height === sh) conf = new Float32Array(m.getAsFloat32Array());
+            });
+        } catch (err) {
+            console.warn("hair segmentation of the generated image failed", err);
+            return null;
+        }
+        if (!conf) return null;
+        const out = document.createElement("canvas");
+        out.width = sw; out.height = sh;
+        const octx = out.getContext("2d");
+        const px = octx.createImageData(sw, sh);
+        for (let i = 0; i < conf.length; i++) {
+            px.data[i * 4 + 3] = Math.round(255 * Math.min(1, Math.max(0, (conf[i] - 0.3) / 0.35)));
+        }
+        octx.putImageData(px, 0, 0);
+        return out;
     }
 
     /** Show a finished realistic image instead of the 2D try-on (null = back to 2D). */
