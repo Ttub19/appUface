@@ -6,12 +6,15 @@ cut-out.
 Two providers, picked with HAIR_AI_PROVIDER (or automatically from whichever
 credentials are set):
 
-  cloudflare  (default, free) — Cloudflare Workers AI, Stable Diffusion 1.5
-              inpainting. The browser sends a 512x512 crop around the head of
-              the 2D try-on (= the shape and colour of the chosen style) plus a
-              mask of the hair area; only the masked hair is repainted
-              ("patch" mode), so the face stays exactly the user's own.
-              Env: CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN
+  cloudflare  (default, free) — Cloudflare Workers AI, FLUX.2 [klein] 9B image
+              editing (Stable Diffusion 1.5 inpainting, used before, was retired
+              by Cloudflare on 2026-11-20). The browser sends a 512x512 crop
+              around the head of the 2D try-on (= the shape and colour of the
+              chosen style) plus a mask of the hair area. FLUX.2 has no mask
+              input, so it edits the whole crop, and the browser pastes back only
+              the masked hair ("patch" mode) — the face stays the user's own.
+              Env: CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN,
+                   optional CLOUDFLARE_IMAGE_MODEL
 
   gemini      (better quality, paid / Google Cloud trial credit) — Gemini image
               editing. Gets the original photo + the chosen hairstyle picture
@@ -40,7 +43,8 @@ logger = logging.getLogger(__name__)
 
 BANGKOK = timezone(timedelta(hours=7))
 DEFAULT_DAILY_LIMIT = 5
-CLOUDFLARE_MODEL = "@cf/runwayml/stable-diffusion-v1-5-inpainting"
+# FLUX.2 models take multipart/form-data (prompt, width, height, input_image_0..); SD 1.5 inpainting was retired 2026-11-20
+CLOUDFLARE_MODEL = "@cf/black-forest-labs/flux-2-klein-9b"
 DEFAULT_GEMINI_MODEL = "gemini-nano-banana-2.1"
 PATCH_SIZE = 512                       # SD 1.5 works at 512 px
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
@@ -67,6 +71,7 @@ class HairAIConfig:
     cloudflare_api_token: str = ""
     gemini_api_key: str = ""
     gemini_model: str = DEFAULT_GEMINI_MODEL
+    cloudflare_model: str = CLOUDFLARE_MODEL
 
     @property
     def enabled(self) -> bool:
@@ -95,7 +100,8 @@ def load_config(env=os.environ) -> HairAIConfig:
     except ValueError:
         limit = DEFAULT_DAILY_LIMIT
     return HairAIConfig(provider, limit, cf_id, cf_token, gem_key,
-                        env.get("GEMINI_IMAGE_MODEL", "").strip() or DEFAULT_GEMINI_MODEL)
+                        env.get("GEMINI_IMAGE_MODEL", "").strip() or DEFAULT_GEMINI_MODEL,
+                        env.get("CLOUDFLARE_IMAGE_MODEL", "").strip() or CLOUDFLARE_MODEL)
 
 
 def day_start_utc(now: Optional[datetime] = None) -> datetime:
@@ -143,12 +149,13 @@ def describe_color(color_id: Optional[str], color_rgb: Optional[list]) -> str:
     return "natural"
 
 
-def cloudflare_prompt(style_name: str, color_words: str) -> tuple[str, str]:
-    prompt = (f"photo of a person with a {style_name} haircut, {color_words} hair, realistic natural hair strands, "
-              "detailed hair texture, soft natural lighting, photorealistic, sharp focus")
-    negative = ("cartoon, drawing, painting, illustration, wig, helmet, plastic, blurry, low quality, deformed, "
-                "extra face, distorted face, text, watermark")
-    return prompt, negative
+def cloudflare_prompt(style_name: str, color_words: str) -> str:
+    """Edit instruction for FLUX.2: the input crop already has the right hair shape and colour (2D try-on)."""
+    return (f"Edit this photo: turn the {style_name} hairstyle on the person's head into completely real, natural "
+            f"{color_words} hair with individual strands, volume, soft natural shadows and lighting that match the photo. "
+            "Keep the hair's shape, length, parting and outline exactly as in the image. "
+            "Do not change the face, eyes, skin, expression, ears, clothes, background or framing. "
+            "Photorealistic photo, sharp focus, no wig, no helmet, no drawing, no text.")
 
 
 def gemini_prompt(style_name: str, color_words: str) -> str:
@@ -159,15 +166,35 @@ def gemini_prompt(style_name: str, color_words: str) -> str:
             "Return only the edited photo.")
 
 
-def cloudflare_payload(guide_png: bytes, mask_png: bytes, style_name: str, color_words: str, seed: int = 42) -> dict:
-    prompt, negative = cloudflare_prompt(style_name, color_words)
-    return {
-        "prompt": prompt, "negative_prompt": negative,
-        "image": list(guide_png), "mask": list(mask_png),   # Workers AI takes encoded image files as byte arrays
-        "width": PATCH_SIZE, "height": PATCH_SIZE,
-        # the guide already has the right hair shape and colour: keep it, repaint texture + lighting
-        "strength": .6, "num_steps": 20, "guidance": 7.5, "seed": seed,
-    }
+def cloudflare_form(guide_png: bytes, style_name: str, color_words: str) -> list:
+    """multipart/form-data fields for FLUX.2 on Workers AI: (name, value, filename, content type).
+    The mask is not sent (FLUX.2 has no mask input); the browser keeps only the masked hair of the result."""
+    return [
+        ("prompt", cloudflare_prompt(style_name, color_words), None, None),
+        ("width", str(PATCH_SIZE), None, None),
+        ("height", str(PATCH_SIZE), None, None),
+        ("input_image_0", guide_png, "guide.png", "image/png"),
+    ]
+
+
+def encode_multipart(fields: list, boundary: Optional[str] = None) -> tuple[bytes, str]:
+    """Build a multipart/form-data body (stdlib only). Returns (body, content type header)."""
+    import uuid
+    boundary = boundary or f"ushape-{uuid.uuid4().hex}"
+    out = io.BytesIO()
+    for name, value, filename, ctype in fields:
+        out.write(f"--{boundary}\r\n".encode())
+        disp = f'Content-Disposition: form-data; name="{name}"'
+        if filename:
+            disp += f'; filename="{filename}"'
+        out.write((disp + "\r\n").encode())
+        if ctype:
+            out.write(f"Content-Type: {ctype}\r\n".encode())
+        out.write(b"\r\n")
+        out.write(value if isinstance(value, bytes) else str(value).encode("utf-8"))
+        out.write(b"\r\n")
+    out.write(f"--{boundary}--\r\n".encode())
+    return out.getvalue(), f"multipart/form-data; boundary={boundary}"
 
 
 def gemini_payload(model: str, photo: bytes, photo_mime: str, reference: bytes, ref_mime: str, prompt: str) -> dict:
@@ -255,8 +282,11 @@ def parse_gemini_response(body: bytes) -> tuple[bytes, str]:
 
 
 def _post(url: str, headers: dict, payload: dict) -> tuple[int, str, bytes]:
-    req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"),
-                                 headers={"Content-Type": "application/json", **headers}, method="POST")
+    return _post_raw(url, {"Content-Type": "application/json", **headers}, json.dumps(payload).encode("utf-8"))
+
+
+def _post_raw(url: str, headers: dict, data: bytes) -> tuple[int, str, bytes]:
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT_S) as res:
             return res.status, res.headers.get("Content-Type", ""), res.read()
@@ -271,9 +301,10 @@ def call_provider(cfg: HairAIConfig, *, style_name: str, color_words: str,
                   photo: Optional[tuple[bytes, str]] = None, reference: Optional[tuple[bytes, str]] = None) -> tuple[bytes, str]:
     """Blocking network call (run it in a thread). Returns (image bytes, mime)."""
     if cfg.provider == "cloudflare":
-        url = f"https://api.cloudflare.com/client/v4/accounts/{cfg.cloudflare_account_id}/ai/run/{CLOUDFLARE_MODEL}"
-        status_code, ctype, body = _post(url, {"Authorization": f"Bearer {cfg.cloudflare_api_token}"},
-                                         cloudflare_payload(guide, mask, style_name, color_words))
+        url = f"https://api.cloudflare.com/client/v4/accounts/{cfg.cloudflare_account_id}/ai/run/{cfg.cloudflare_model}"
+        body_bytes, content_type = encode_multipart(cloudflare_form(guide, style_name, color_words))
+        status_code, ctype, body = _post_raw(url, {"Authorization": f"Bearer {cfg.cloudflare_api_token}",
+                                                   "Content-Type": content_type}, body_bytes)
         if status_code >= 400 and not _sniff_mime(body):
             logger.warning("Cloudflare AI HTTP %s: %s", status_code, body[:300])
             parse_cloudflare_response(ctype, body)          # raises with the provider's message when it's JSON

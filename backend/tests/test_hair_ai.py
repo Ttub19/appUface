@@ -73,16 +73,32 @@ class Inputs(unittest.TestCase):
         self.assertEqual(hair_ai.describe_color("mine", [180, 150, 110]), "natural light brown")
         self.assertEqual(hair_ai.describe_color(None, None), "natural")
 
-    def test_cloudflare_payload(self):
-        g, m = png_bytes(), png_bytes(color=(255, 255, 255))
-        p = hair_ai.cloudflare_payload(g, m, "Buzz Cut", "jet black")
-        self.assertEqual(bytes(p["image"]), g)
-        self.assertEqual(bytes(p["mask"]), m)
-        self.assertIn("Buzz Cut", p["prompt"])
-        self.assertIn("jet black", p["prompt"])
-        self.assertEqual((p["width"], p["height"]), (512, 512))
-        self.assertTrue(0 < p["strength"] < 1)
-        json.dumps(p)   # must be JSON-serialisable
+    def test_cloudflare_form_is_multipart_for_flux2(self):
+        g = png_bytes()
+        fields = hair_ai.cloudflare_form(g, "Buzz Cut", "jet black")
+        by_name = {f[0]: f for f in fields}
+        self.assertEqual(by_name["input_image_0"][1], g)
+        self.assertEqual(by_name["input_image_0"][3], "image/png")
+        self.assertIn("Buzz Cut", by_name["prompt"][1])
+        self.assertIn("jet black", by_name["prompt"][1])
+        self.assertEqual((by_name["width"][1], by_name["height"][1]), ("512", "512"))
+        body, ctype = hair_ai.encode_multipart(fields, boundary="B")
+        self.assertEqual(ctype, "multipart/form-data; boundary=B")
+        self.assertIn(b'name="input_image_0"; filename="guide.png"', body)
+        self.assertIn(g, body)
+        self.assertTrue(body.endswith(b"--B--\r\n"))
+        # the parts parse back with the stdlib email parser
+        from email.parser import BytesParser
+        msg = BytesParser().parsebytes(f"Content-Type: {ctype}\r\n\r\n".encode() + body)
+        parts = {p.get_param("name", header="content-disposition"): p.get_payload(decode=True) for p in msg.get_payload()}
+        self.assertEqual(parts["input_image_0"], g)
+        self.assertEqual(parts["width"], b"512")
+
+    def test_cloudflare_model_default_and_override(self):
+        cf = {"CLOUDFLARE_ACCOUNT_ID": "acc", "CLOUDFLARE_API_TOKEN": "tok"}
+        self.assertEqual(hair_ai.load_config(cf).cloudflare_model, "@cf/black-forest-labs/flux-2-klein-9b")
+        self.assertEqual(hair_ai.load_config({**cf, "CLOUDFLARE_IMAGE_MODEL": "@cf/black-forest-labs/flux-2-klein-4b"}).cloudflare_model,
+                         "@cf/black-forest-labs/flux-2-klein-4b")
 
     def test_gemini_payload(self):
         p = hair_ai.gemini_payload("m", b"PHOTO", "image/jpeg", b"REF", "image/png", "do it")
